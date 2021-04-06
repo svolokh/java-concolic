@@ -8,6 +8,7 @@ import java.util.stream.Collectors;
 
 public class PathConditionTransformer extends SceneTransformer {
     private SootMethod init;
+    private SootMethod lastInput;
     private SootMethod local;
     private SootMethod retVar;
     private SootMethod unaryOp;
@@ -256,21 +257,36 @@ public class PathConditionTransformer extends SceneTransformer {
 
                 if (rightOp instanceof InvokeExpr) {
                     InvokeExpr expr = (InvokeExpr)rightOp;
-                    Body b = expr.getMethod().retrieveActiveBody();
-                    List<Unit> toInsert = new ArrayList<>();
-                    int i = 0;
-                    for (Local paramLocal : b.getParameterLocals()) {
-                        toInsert.add(obtainSymbolicValue(expr.getArg(i), opTmp1));
-                        toInsert.add(Jimple.v().newInvokeStmt(Jimple.v().newStaticInvokeExpr(addAssignmentToParameter.makeRef(),
-                                StringConstant.v(paramLocal.getName()),
-                                StringConstant.v(b.getMethod().getName()),
-                                opTmp1)));
-                        ++i;
+                    if (expr.getMethod().getDeclaringClass().getName().equals("csci699cav.Concolic"))
+                    {
+                        if (expr.getMethod().getName().startsWith("input"))
+                        {
+                            units.insertAfter(Arrays.asList(
+                                    obtainSymbolicValue(leftOp, opTmp1),
+                                    Jimple.v().newAssignStmt(opTmp2, Jimple.v().newStaticInvokeExpr(lastInput.makeRef())),
+                                    Jimple.v().newInvokeStmt(Jimple.v().newStaticInvokeExpr(addAssignment.makeRef(), opTmp1, opTmp2))
+                            ), s);
+                        } else {
+                            throw new IllegalArgumentException("encountered unexpected method call from Concolic class: " + expr);
+                        }
+                    } else
+                    {
+                        Body b = expr.getMethod().retrieveActiveBody();
+                        List<Unit> toInsert = new ArrayList<>();
+                        int i = 0;
+                        for (Local paramLocal : b.getParameterLocals()) {
+                            toInsert.add(obtainSymbolicValue(expr.getArg(i), opTmp1));
+                            toInsert.add(Jimple.v().newInvokeStmt(Jimple.v().newStaticInvokeExpr(addAssignmentToParameter.makeRef(),
+                                    StringConstant.v(paramLocal.getName()),
+                                    StringConstant.v(b.getMethod().getName()),
+                                    opTmp1)));
+                            ++i;
+                        }
+                        toInsert.add(obtainSymbolicValue(leftOp, opTmp1));
+                        units.insertBefore(toInsert, s);
+                        units.insertAfter(
+                                Jimple.v().newInvokeStmt(Jimple.v().newStaticInvokeExpr(addAssignmentFromReturnValue.makeRef(), opTmp1)), s);
                     }
-                    toInsert.add(obtainSymbolicValue(leftOp, opTmp1));
-                    toInsert.add(Jimple.v().newInvokeStmt(Jimple.v().newStaticInvokeExpr(addAssignmentFromReturnValue.makeRef(), opTmp1,
-                            StringConstant.v(b.getMethod().getName()))));
-                    units.insertBefore(toInsert, s);
                 } else {
                     units.insertBefore(Arrays.asList(
                             obtainSymbolicValue(leftOp, opTmp1),
@@ -309,6 +325,7 @@ public class PathConditionTransformer extends SceneTransformer {
         SootClass variableTypeClass = Scene.v().loadClassAndSupport("csci699cav.VariableType");
 
         init = sc.getMethodByName("init");
+        lastInput = sc.getMethodByName("lastInput");
         local = sc.getMethodByName("local");
         retVar = sc.getMethodByName("retVar");
         unaryOp = sc.getMethodByName("unaryOp");
@@ -338,7 +355,8 @@ public class PathConditionTransformer extends SceneTransformer {
             {
                 Body b = m.retrieveActiveBody();
                 processMethod(b);
-                System.out.println(b);
+
+                System.out.println(b); // DEBUG
             }
         }
     }

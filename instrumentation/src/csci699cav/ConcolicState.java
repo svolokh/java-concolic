@@ -3,15 +3,24 @@ package csci699cav;
 import java.util.*;
 
 public class ConcolicState {
-    public static List<Variable> variables = new ArrayList<>();
-    public static List<Assignment> assignments = new ArrayList<>();
-    public static List<PathConstraint> pathConstraints = new ArrayList<>();
+    protected static int inputCounter = 0;
+    protected static Random rng = new Random();
+
+    protected static List<Variable> variables = new ArrayList<>();
+    protected static List<Assignment> assignments = new ArrayList<>();
+    protected static List<PathConstraint> pathConstraints = new ArrayList<>();
 
     private static Stack<String> frameStack = new Stack<String>();
+    private static String lastFrame = null;
     private static int frameCounter = 0;
 
     public static void init() {
         Runtime.getRuntime().addShutdownHook(new Thread(new ShutdownHook()));
+    }
+
+    public static String lastInput()
+    {
+        return "INPUT" + (inputCounter-1);
     }
 
     public static String local(String name) {
@@ -46,7 +55,7 @@ public class ConcolicState {
     }
 
     public static void exitFrame() {
-        frameStack.pop();
+        lastFrame = frameStack.pop();
     }
 
     public static void addVariable(VariableType type, String id) {
@@ -62,9 +71,9 @@ public class ConcolicState {
         addAssignment(paramName + "_" + peekNextFrame(fn), rightOp);
     }
 
-    // call this before entering the callee
-    public static void addAssignmentFromReturnValue(String localVarLeftOp, String fn) {
-        addAssignment(localVarLeftOp, "RET_" + peekNextFrame(fn));
+    // call this in the caller right after the invocation
+    public static void addAssignmentFromReturnValue(String localVarLeftOp) {
+        addAssignment(localVarLeftOp, "RET_" + lastFrame);
     }
 
     // call this in the callee before exiting

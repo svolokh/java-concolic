@@ -5,7 +5,11 @@ import java.io.*;
 public class ShutdownHook implements Runnable {
     @Override
     public void run() {
-        File f = new File("/home/sasha-usc/Documents/test.txt");
+        String outputFile = System.getenv("JAVA_CONCOLIC_OUTPUT");
+        if (outputFile == null) {
+            return;
+        }
+        File f = new File(outputFile);
         try (BufferedWriter bw = new BufferedWriter(new FileWriter(f)))
         {
             for (Variable var : ConcolicState.variables)

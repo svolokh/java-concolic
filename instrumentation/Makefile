@@ -6,7 +6,7 @@ BIN_DIR=bin
 
 CLASSPATH=$(SRC_DIR)
 
-CLASSES=csci699cav/Assignment.class csci699cav/PathConstraint.class csci699cav/ShutdownHook.class csci699cav/VariableType.class csci699cav/Variable.class csci699cav/ConcolicState.class 
+CLASSES=csci699cav/Assignment.class csci699cav/PathConstraint.class csci699cav/ShutdownHook.class csci699cav/VariableType.class csci699cav/Variable.class csci699cav/ConcolicState.class csci699cav/Concolic.class
 
 .PHONY: dirs
 
