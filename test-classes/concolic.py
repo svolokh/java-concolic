@@ -30,6 +30,9 @@ class PathConstraint:
         self.condition = condition
         self.wasTrue = wasTrue
 
+    def __repr__(self):
+        return '({}, {}, {})'.format(self.branchId, self.condition, self.wasTrue)
+
 class PathData:
     def __init__(self, variables, assignments, pathConstraints):
         self.variables = variables
@@ -106,12 +109,16 @@ def solveForInputs(sfiStack, sfiPathData):
         sfiSolver.add(sfiCond)
         sfiCounter += 1
     if sfiSolver.check() == z3.sat:
-        return sfiSolver.model(), sfiInputVars
+        m = sfiSolver.model()
+        print('Solved {}, model {}'.format(sfiSolver, m))
+        return m, sfiInputVars
     else:
         return None, None
 
 def modelValueToInput(val):
-    if type(val) is z3.BitVecNumRef:
+    if val is None:
+        return None
+    elif type(val) is z3.BitVecNumRef:
         return val.as_signed_long()
     else:
         raise Exception('unsupported model value {}'.format(val))
@@ -122,6 +129,8 @@ def runInstrumentedProgram(inputs):
         "JAVA_CONCOLIC_OUTPUT": PATH_DATA_OUTPUT
     }
     for i in range(len(inputs)):
+        if inputs[i] is None:
+            continue # this input will be random
         env["JAVA_CONCOLIC_INPUT{}".format(i)] = str(inputs[i])
     r = subprocess.run([JAVA, "-cp", "{}:{}".format(CLASSES_DIR, INSTRUMENTATION_CLASSES), ENTRYPOINT_CLASS], env=env, capture_output=True)
     if len(r.stdout) > 0:
@@ -134,20 +143,21 @@ def runInstrumentedProgram(inputs):
 stack = [] 
 inputs = []
 while True:
-    inputRepr = 'random inputs' if len(inputs) == 0 else 'inputs {}'.format(inputs)
-    print('Trying {}'.format(inputRepr))
-    foundError = runInstrumentedProgram(inputs)
-    if foundError:
-        print('Found error!')
-    pathData = readPathData()
-    for i in range(len(pathData.pathConstraints)):
-        pc = pathData.pathConstraints[i]
-        if i >= len(stack):
-            stack.append(StackEntry(pc.branchId, False, pc.wasTrue))
-        else:
-            entry = stack[i]
-            if pc.branchId != entry.branchId or pc.wasTrue != entry.isTrue:
-                raise Exception("program execution did not proceed as expected")
+    if inputs is not None:
+        inputRepr = 'random inputs' if len(inputs) == 0 else 'inputs {}'.format(inputs)
+        print('Trying {}'.format(inputRepr))
+        foundError = runInstrumentedProgram(inputs)
+        if foundError:
+            print('Found error!')
+        pathData = readPathData()
+        for i in range(len(pathData.pathConstraints)):
+            pc = pathData.pathConstraints[i]
+            if i >= len(stack):
+                stack.append(StackEntry(pc.branchId, False, pc.wasTrue))
+            else:
+                entry = stack[i]
+                if pc.branchId != entry.branchId or pc.wasTrue != entry.isTrue:
+                    raise Exception("program execution did not proceed as expected:\n    expected: {}\n    actual: {}".format(stack, pathData.pathConstraints))
     while len(stack) > 0 and stack[-1].done:
         stack.pop()
     if len(stack) == 0:
@@ -158,8 +168,10 @@ while True:
     last.done = True
     model, inputVars = solveForInputs(stack, pathData)
     if model is None:
-        raise Exception('no solution to path')
-    inputs = []
-    for i in range(len(inputVars)):
-        inputVar = inputVars['INPUT{}'.format(i)]
-        inputs.append(modelValueToInput(model[inputVar]))
+        # desired path constraints are unsat; come up with different path constraints
+        inputs = None
+    else:
+        inputs = []
+        for i in range(len(inputVars)):
+            inputVar = inputVars['INPUT{}'.format(i)]
+            inputs.append(modelValueToInput(model[inputVar]))
