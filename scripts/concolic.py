@@ -25,10 +25,11 @@ class Variable:
         self.varName = varName
 
 class PathConstraint:
-    def __init__(self, branchId, condition, wasTrue):
+    def __init__(self, branchId, condition, wasTrue, assignmentIndex):
         self.branchId = branchId
         self.condition = condition
         self.wasTrue = wasTrue
+        self.assignmentIndex = assignmentIndex
 
     def __repr__(self):
         return '({}, {}, {})'.format(self.branchId, self.condition, self.wasTrue)
@@ -64,15 +65,17 @@ def readPathData():
             if len(lines[i]) == 0:
                 i += 1
                 break
-            branchId, condition, wasTrue = lines[i].split('; ')
-            pathConstraints.append(PathConstraint(int(branchId), condition, wasTrue == 'true'))
+            branchId, condition, wasTrue, assignmentIndex = lines[i].split('; ')
+            pathConstraints.append(PathConstraint(int(branchId), condition, wasTrue == 'true', int(assignmentIndex)))
             i += 1
         return PathData(variables, assignments, pathConstraints)
 
 def makeZ3Var(v):
     t = v.varType
     name = v.varName
-    if t == 'BYTE':
+    if t == 'BOOLEAN':
+        return z3.Bool(name)
+    elif t == 'BYTE':
         return z3.BitVec(name, 8)
     elif t == 'SHORT':
         return z3.BitVec(name, 16)
@@ -96,21 +99,34 @@ def solveForInputs(sfiStack, sfiPathData):
         exec('{} = sfiVar'.format(sfiV.varName))
         if sfiV.varName.startswith('INPUT'):
             sfiInputVars[sfiV.varName] = sfiVar
-    for sfiAssign in sfiPathData.assignments:
-        exec(sfiAssign)
-    sfiCounter = 0
+
     sfiSolver = z3.Solver()
-    for sfiPc in sfiPathData.pathConstraints:
-        if sfiCounter >= len(sfiStack):
-            break
-        sfiCond = eval(sfiPc.condition)
-        if not sfiStack[sfiCounter].isTrue:
+
+    sfiPathIndex = 0
+    for sfiAssignIndex in range(len(sfiPathData.assignments)):
+        sfiPc = sfiPathData.pathConstraints[sfiPathIndex]
+        if sfiPc.assignmentIndex == sfiAssignIndex:
+            sfiCond = eval(sfiPathData.pathConstraints[sfiPathIndex].condition)
+            if not sfiStack[sfiPathIndex].isTrue:
+                sfiCond = z3.Not(sfiCond)
+            sfiSolver.add(sfiCond)
+            sfiPathIndex += 1
+            if sfiPathIndex >= len(sfiStack):
+                break
+        exec(sfiPathData.assignments[sfiAssignIndex])
+
+    while sfiPathIndex < len(sfiStack):
+        sfiPc = sfiPathData.pathConstraints[sfiPathIndex]
+        assert sfiPc.assignmentIndex == len(sfiPathData.assignments)
+        sfiCond = eval(sfiPathData.pathConstraints[sfiPathIndex].condition)
+        if not sfiStack[sfiPathIndex].isTrue:
             sfiCond = z3.Not(sfiCond)
         sfiSolver.add(sfiCond)
-        sfiCounter += 1
+        sfiPathIndex += 1
+
     if sfiSolver.check() == z3.sat:
         m = sfiSolver.model()
-        print('Solved {}, model {}'.format(sfiSolver, m))
+        # print('Solved {}'.format(sfiSolver))
         return m, sfiInputVars
     else:
         return None, None
@@ -145,6 +161,7 @@ inputs = []
 while True:
     if inputs is not None:
         inputRepr = 'random inputs' if len(inputs) == 0 else 'inputs {}'.format(inputs)
+        print('Stack: {}'.format(list(map(lambda e: (e.done, e.isTrue), stack))))
         print('Trying {}'.format(inputRepr))
         foundError = runInstrumentedProgram(inputs)
         if foundError:
@@ -157,7 +174,9 @@ while True:
             else:
                 entry = stack[i]
                 if pc.branchId != entry.branchId or pc.wasTrue != entry.isTrue:
-                    raise Exception("program execution did not proceed as expected:\n    expected: {}\n    actual: {}".format(stack, pathData.pathConstraints))
+                    raise Exception("program execution did not proceed as expected:\n    expected: {}\n    actual: {}".format(
+                        list(map(lambda e: (e.branchId, e.isTrue), stack)), 
+                        list(map(lambda pc: (pc.branchId, pc.wasTrue),  pathData.pathConstraints))))
     while len(stack) > 0 and stack[-1].done:
         stack.pop()
     if len(stack) == 0:

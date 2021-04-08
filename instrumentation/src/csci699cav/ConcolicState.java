@@ -83,6 +83,6 @@ public class ConcolicState {
     }
 
     public static void addPathConstraint(int branchId, String condition, boolean conditionConcrete) {
-        pathConstraints.add(new PathConstraint(branchId, condition, conditionConcrete));
+        pathConstraints.add(new PathConstraint(branchId, condition, conditionConcrete, assignments.size()));
     }
 }

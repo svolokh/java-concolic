@@ -39,6 +39,8 @@ public class ShutdownHook implements Runnable {
                 bw.write(pc.condition);
                 bw.write("; ");
                 bw.write(pc.conditionConcrete ? "true" : "false");
+                bw.write("; ");
+                bw.write(Integer.toString(pc.assignmentIndex));
                 bw.write("\n");
             }
         } catch (IOException e)
