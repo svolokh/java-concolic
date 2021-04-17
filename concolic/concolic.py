@@ -189,7 +189,6 @@ def runInstrumentedProgram(inputs, runCommand):
             print(r.stderr.decode('utf-8'))
     return r.returncode != 0
 
-
 # load config
 with open(sys.argv[1], 'r') as f:
     cfg = json.loads(f.read())

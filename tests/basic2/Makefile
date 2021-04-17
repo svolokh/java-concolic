@@ -7,6 +7,7 @@ all: sootOutput
 
 clean:
 	rm -fr bin sootOutput
+	rm pathConstraints.txt || true
 
 sootOutput: bin/MyClass.class
 	$(JAVA_HOME)/bin/java -Xmx4g -cp "../../instrumenter/target/java-concolic-1.0-SNAPSHOT.jar" csci699cav.Main \
