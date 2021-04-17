@@ -322,7 +322,7 @@ public class PathConditionTransformer extends SceneTransformer {
     @Override
     protected void internalTransform(String phaseName, Map<String, String> options) {
         new SwitchToIfStmtTransformer().internalTransform(phaseName, options);
-        
+
         SootClass sc = Scene.v().loadClassAndSupport("csci699cav.ConcolicState");
         SootClass variableTypeClass = Scene.v().loadClassAndSupport("csci699cav.VariableType");
 
