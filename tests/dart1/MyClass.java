@@ -5,6 +5,7 @@ public class MyClass {
         return 2*x;
     }
 
+    @Concolic.Entrypoint
     public static void h(int x, int y) {
         if (x != y) {
             if (f(x) == x + 10) {

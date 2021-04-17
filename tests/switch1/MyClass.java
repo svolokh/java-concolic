@@ -1,7 +1,8 @@
 import csci699cav.Concolic;
 
 public class MyClass {
-    public static void h() {
+    @Concolic.Entrypoint
+    public static void run() {
         int x = Concolic.inputInt() + 2;
         switch(x) {
             case 0:
@@ -17,6 +18,6 @@ public class MyClass {
     }
 
     public static void main(String[] args) {
-        h();
+        run();
     }
 }

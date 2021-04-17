@@ -1,6 +1,7 @@
 import csci699cav.Concolic;
 
 public class MyClass {
+    @Concolic.Entrypoint
     public static void h() {
         int x = Concolic.inputInt();
         if (x < 0 || x > 4) {

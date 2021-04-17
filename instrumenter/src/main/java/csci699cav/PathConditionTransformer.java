@@ -2,6 +2,9 @@ package csci699cav;
 
 import soot.*;
 import soot.jimple.*;
+import soot.tagkit.AnnotationTag;
+import soot.tagkit.Tag;
+import soot.tagkit.VisibilityAnnotationTag;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -13,10 +16,10 @@ public class PathConditionTransformer extends SceneTransformer {
     private SootMethod retVar;
     private SootMethod unaryOp;
     private SootMethod binaryOp;
-    private SootMethod peekNextFrame;
     private SootMethod newFrame;
     private SootMethod exitFrame;
     private SootMethod addVariable;
+    private SootMethod addVariableIfNotPresent;
     private SootMethod addAssignment;
     private SootMethod addAssignmentToParameter;
     private SootMethod addAssignmentFromReturnValue;
@@ -56,6 +59,10 @@ public class PathConditionTransformer extends SceneTransformer {
         }
     }
 
+    private String varNameForField(SootField sf) {
+        return "ST_" + sf.getDeclaringClass().getName().replace(".", "_") + "_" + sf.getName();
+    }
+
     // generates statement to produce a symbolic value for the given value
     private Unit obtainSymbolicValue(Value v, Local outVar) {
         if (v instanceof Constant) {
@@ -63,6 +70,9 @@ public class PathConditionTransformer extends SceneTransformer {
         } else if (v instanceof Local) {
             Local l = (Local)v;
             return Jimple.v().newAssignStmt(outVar, Jimple.v().newStaticInvokeExpr(local.makeRef(), StringConstant.v(l.getName())));
+        } else if (v instanceof StaticFieldRef) {
+            StaticFieldRef sfr = (StaticFieldRef)v;
+            return Jimple.v().newAssignStmt(outVar, StringConstant.v(varNameForField(sfr.getField())));
         } else if (v instanceof UnopExpr)
         {
             UnopExpr e = (UnopExpr)v;
@@ -155,6 +165,7 @@ public class PathConditionTransformer extends SceneTransformer {
 
         UnitPatchingChain units = body.getUnits();
         Iterator<Unit> it = units.snapshotIterator(); // for use when instrumenting the method body
+        Iterator<Unit> it2  = units.snapshotIterator(); // for use when declaring variables
 
         // assign a unique id to each branch
         for (Unit u : body.getUnits())
@@ -178,29 +189,70 @@ public class PathConditionTransformer extends SceneTransformer {
                         Jimple.v().newStaticInvokeExpr(newFrame.makeRef(), StringConstant.v(body.getMethod().getName()))), first);
 
         // add variables
-        if (!m.getReturnType().equals(VoidType.v()))
         {
-            units.insertBefore(
-                    Arrays.asList(
-                            Jimple.v().newAssignStmt(varTypeTmp, Jimple.v().newStaticFieldRef(sootTypeToSymbolicType(m.getReturnType()).makeRef())),
-                            Jimple.v().newAssignStmt(opTmp1, Jimple.v().newStaticInvokeExpr(retVar.makeRef())),
-                            Jimple.v().newInvokeStmt(Jimple.v().newStaticInvokeExpr(addVariable.makeRef(), varTypeTmp, opTmp1))), first);
-        }
-        for (Local paramLocal : origLocals)
-        {
-            units.insertBefore(
-                    Arrays.asList(
-                            Jimple.v().newAssignStmt(varTypeTmp, Jimple.v().newStaticFieldRef(sootTypeToSymbolicType(paramLocal.getType()).makeRef())),
-                            Jimple.v().newAssignStmt(opTmp1,
-                                    Jimple.v().newStaticInvokeExpr(local.makeRef(), StringConstant.v(paramLocal.getName()))),
-                            Jimple.v().newInvokeStmt(Jimple.v().newStaticInvokeExpr(addVariable.makeRef(), varTypeTmp, opTmp1))
-                    ), first);
+            // variable for return value
+            if (!m.getReturnType().equals(VoidType.v()))
+            {
+                units.insertBefore(
+                        Arrays.asList(
+                                Jimple.v().newAssignStmt(varTypeTmp, Jimple.v().newStaticFieldRef(sootTypeToSymbolicType(m.getReturnType()).makeRef())),
+                                Jimple.v().newAssignStmt(opTmp1, Jimple.v().newStaticInvokeExpr(retVar.makeRef())),
+                                Jimple.v().newInvokeStmt(Jimple.v().newStaticInvokeExpr(addVariable.makeRef(), varTypeTmp, opTmp1))), first);
+            }
+
+            // variable for each local
+            for (Local l : origLocals)
+            {
+                units.insertBefore(
+                        Arrays.asList(
+                                Jimple.v().newAssignStmt(varTypeTmp, Jimple.v().newStaticFieldRef(sootTypeToSymbolicType(l.getType()).makeRef())),
+                                Jimple.v().newAssignStmt(opTmp1,
+                                        Jimple.v().newStaticInvokeExpr(local.makeRef(), StringConstant.v(l.getName()))),
+                                Jimple.v().newInvokeStmt(Jimple.v().newStaticInvokeExpr(addVariable.makeRef(), varTypeTmp, opTmp1))
+                        ), first);
+            }
+
+            // variable for each static field access
+            Set<Integer> staticFieldsDeclared = new HashSet<>();
+            while (it2.hasNext())
+            {
+                Unit u = it2.next();
+                for (ValueBox vb : u.getUseAndDefBoxes()) {
+                    Value v = vb.getValue();
+                    if (v instanceof StaticFieldRef) {
+                        StaticFieldRef s = (StaticFieldRef)v;
+                        SootField sf = s.getField();
+                        int key = sf.equivHashCode();
+                        if (staticFieldsDeclared.add(key))
+                        {
+                            String varName = varNameForField(sf);
+                            units.insertBefore(
+                                    Arrays.asList(
+                                            Jimple.v().newAssignStmt(varTypeTmp, Jimple.v().newStaticFieldRef(sootTypeToSymbolicType(sf.getType()).makeRef())),
+                                            Jimple.v().newInvokeStmt(Jimple.v().newStaticInvokeExpr(addVariableIfNotPresent.makeRef(), varTypeTmp,
+                                                    StringConstant.v(varName), IntConstant.v(key)))), first);
+                        }
+                    }
+                }
+            }
         }
 
         // if entry-point, add entry-point header
-        boolean isEntryPoint = body.getMethod().getName().equals("h");
+        boolean isEntryPoint = false;
+        VisibilityAnnotationTag vat = (VisibilityAnnotationTag) body.getMethod().getTag("VisibilityAnnotationTag");
+        if (vat != null) {
+            for (AnnotationTag tag : vat.getAnnotations()) {
+                if (tag.getType().equals("Lcsci699cav/Concolic$Entrypoint;"))
+                {
+                    isEntryPoint = true;
+                    break;
+                }
+            }
+        }
+
         if (isEntryPoint)
         {
+            // add call to ConcolicState.init()
             {
                 Unit u = units.getFirst();
                 while (u instanceof IdentityStmt)
@@ -210,6 +262,7 @@ public class PathConditionTransformer extends SceneTransformer {
                 units.insertBefore(Jimple.v().newInvokeStmt(Jimple.v().newStaticInvokeExpr(init.makeRef())), u);
             }
 
+            // add assignment to input for each parameter to the entry-point method
             List<Local> paramLocals = body.getParameterLocals();
             for (int i = 0; i != paramLocals.size(); ++i)
             {
@@ -294,6 +347,21 @@ public class PathConditionTransformer extends SceneTransformer {
                             Jimple.v().newInvokeStmt(Jimple.v().newStaticInvokeExpr(addAssignment.makeRef(), opTmp1, opTmp2))
                     ), s);
                 }
+            } else if (s instanceof InvokeStmt) {
+                InvokeStmt stmt = (InvokeStmt)s;
+                InvokeExpr expr = stmt.getInvokeExpr();
+                Body b = expr.getMethod().retrieveActiveBody();
+                List<Unit> toInsert = new ArrayList<>();
+                int i = 0;
+                for (Local paramLocal : b.getParameterLocals()) {
+                    toInsert.add(obtainSymbolicValue(expr.getArg(i), opTmp1));
+                    toInsert.add(Jimple.v().newInvokeStmt(Jimple.v().newStaticInvokeExpr(addAssignmentToParameter.makeRef(),
+                            StringConstant.v(paramLocal.getName()),
+                            StringConstant.v(b.getMethod().getName()),
+                            opTmp1)));
+                    ++i;
+                }
+                units.insertBefore(toInsert, s);
             } else if (s instanceof IfStmt)
             {
                 /**
@@ -332,10 +400,10 @@ public class PathConditionTransformer extends SceneTransformer {
         retVar = sc.getMethodByName("retVar");
         unaryOp = sc.getMethodByName("unaryOp");
         binaryOp = sc.getMethodByName("binaryOp");
-        peekNextFrame = sc.getMethodByName("peekNextFrame");
         newFrame = sc.getMethodByName("newFrame");
         exitFrame = sc.getMethodByName("exitFrame");
         addVariable = sc.getMethodByName("addVariable");
+        addVariableIfNotPresent = sc.getMethodByName("addVariableIfNotPresent");
         addAssignment = sc.getMethodByName("addAssignment");
         addAssignmentToParameter = sc.getMethodByName("addAssignmentToParameter");
         addAssignmentFromReturnValue = sc.getMethodByName("addAssignmentFromReturnValue");

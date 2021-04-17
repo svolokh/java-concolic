@@ -1,8 +1,12 @@
 package csci699cav;
 
-import java.util.Random;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
 
 public class Concolic {
+
+    @Retention(RetentionPolicy.CLASS)
+    public static @interface Entrypoint {}
 
     public static int inputInt() {
         String givenVal = System.getenv("JAVA_CONCOLIC_INPUT" + ConcolicState.inputCounter);

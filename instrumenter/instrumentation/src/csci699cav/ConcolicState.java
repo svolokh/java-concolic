@@ -12,6 +12,8 @@ public class ConcolicState {
     protected static List<Assignment> assignments = new ArrayList<>();
     protected static List<PathConstraint> pathConstraints = new ArrayList<>();
 
+    private static Set<Integer> declaredVariables = new HashSet<Integer>();
+
     private static Stack<String> frameStack = new Stack<String>();
     private static String lastFrame = null;
     private static int frameCounter = 0;
@@ -69,6 +71,13 @@ public class ConcolicState {
 
     public static void addVariable(VariableType type, String id) {
         variables.add(new Variable(type, id));
+    }
+
+    // key is used to quickly check if the variable has already been declared
+    public static void addVariableIfNotPresent(VariableType type, String id, int key) {
+        if (declaredVariables.add(key)) {
+            variables.add(new Variable(type, id));
+        }
     }
 
     public static void addAssignment(String leftOp, String rightOp) {
