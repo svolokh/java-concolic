@@ -6,7 +6,9 @@ public class ConcolicState {
     protected static int inputCounter = 0;
     protected static Random rng = new Random();
 
+    protected static List<Variable> inputVariables = new ArrayList<>();
     protected static List<Variable> variables = new ArrayList<>();
+    protected static List<Assignment> inputAssignments = new ArrayList<>();
     protected static List<Assignment> assignments = new ArrayList<>();
     protected static List<PathConstraint> pathConstraints = new ArrayList<>();
 
@@ -21,6 +23,13 @@ public class ConcolicState {
     public static String lastInput()
     {
         return "INPUT" + (inputCounter-1);
+    }
+
+    public static void addInput(VariableType type, String value) {
+        String varName = "INPUT" + inputCounter;
+        inputVariables.add(new Variable(type, varName));
+        inputAssignments.add(new Assignment(varName, value));
+        ++inputCounter;
     }
 
     public static String local(String name) {

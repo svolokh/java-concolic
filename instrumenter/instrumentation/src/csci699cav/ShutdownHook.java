@@ -12,11 +12,31 @@ public class ShutdownHook implements Runnable {
         File f = new File(outputFile);
         try (BufferedWriter bw = new BufferedWriter(new FileWriter(f)))
         {
+            for (Variable var : ConcolicState.inputVariables)
+            {
+                bw.write(var.type.name());
+                bw.write(" ");
+                bw.write(var.id);
+                bw.write("\n");
+            }
+
+            bw.write("\n");
+
             for (Variable var : ConcolicState.variables)
             {
                 bw.write(var.type.name());
                 bw.write(" ");
                 bw.write(var.id);
+                bw.write("\n");
+            }
+
+            bw.write("\n");
+
+            for (Assignment assign : ConcolicState.inputAssignments)
+            {
+                bw.write(assign.leftOp);
+                bw.write(" = ");
+                bw.write(assign.rightOp);
                 bw.write("\n");
             }
 

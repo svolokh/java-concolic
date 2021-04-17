@@ -1,7 +1,6 @@
 import csci699cav.Concolic;
 
 public class MyClass {
-
     public static int f(int x) {
         return 2*x;
     }
