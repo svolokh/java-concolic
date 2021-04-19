@@ -12,6 +12,8 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 public class PathConditionTransformer extends SceneTransformer {
+    private boolean isComplete;
+
     private SootMethod init;
     private SootMethod lastInput;
     private SootMethod local;
@@ -35,7 +37,7 @@ public class PathConditionTransformer extends SceneTransformer {
     private SootMethod addAssignmentToParameter;
     private SootMethod addAssignmentFromReturnValue;
     private SootMethod addAssignmentToReturnValue;
-    private SootMethod addConcreteAssignmentToReturnValue;
+    private Map<Type, SootMethod> addConcreteAssignment;
     private SootMethod addPathConstraint;
 
     private SootField varTypeByte;
@@ -441,10 +443,19 @@ public class PathConditionTransformer extends SceneTransformer {
                         units.insertBefore(toInsert, s);
                         toInsert.clear();
                         if (!expr.getMethod().hasTag(InstrumentedTag.NAME)) {
-                            toInsert.add(Jimple.v().newInvokeStmt(
-                                    Jimple.v().newStaticInvokeExpr(addConcreteAssignmentToReturnValue.makeRef(), leftOp)));
+                            // encountered method for which we cannot do symbolic execution; use its concrete return value
+                            if (leftOp.getType() instanceof PrimType) {
+                                toInsert.add(Jimple.v().newInvokeStmt(
+                                        Jimple.v().newStaticInvokeExpr(addConcreteAssignment.get(leftOp.getType()).makeRef(), opTmp1, leftOp)));
+                            } else {
+                                toInsert.add(Jimple.v().newInvokeStmt(
+                                        Jimple.v().newStaticInvokeExpr(addConcreteAssignment.get(RefType.v("java.lang.Object")).makeRef(), opTmp1, leftOp)));
+                            }
+                            System.out.println("Warning: Encountered method call to " + expr.getMethod().getSignature() + " for which symbolic execution is unavailable, will use concrete return value");
+                            isComplete = false;
+                        } else {
+                            toInsert.add(Jimple.v().newInvokeStmt(Jimple.v().newStaticInvokeExpr(addAssignmentFromReturnValue.makeRef(), opTmp1)));
                         }
-                        toInsert.add(Jimple.v().newInvokeStmt(Jimple.v().newStaticInvokeExpr(addAssignmentFromReturnValue.makeRef(), opTmp1)));
                         units.insertAfter(toInsert, s);
                     }
                 } else {
@@ -496,6 +507,8 @@ public class PathConditionTransformer extends SceneTransformer {
         SootClass sc = Scene.v().loadClassAndSupport("csci699cav.ConcolicState");
         SootClass variableTypeClass = Scene.v().loadClassAndSupport("csci699cav.VariableType");
 
+        isComplete = true;
+
         init = sc.getMethodByName("init");
         lastInput = sc.getMethodByName("lastInput");
         local = sc.getMethodByName("local");
@@ -519,7 +532,16 @@ public class PathConditionTransformer extends SceneTransformer {
         addAssignmentToParameter = sc.getMethodByName("addAssignmentToParameter");
         addAssignmentFromReturnValue = sc.getMethodByName("addAssignmentFromReturnValue");
         addAssignmentToReturnValue = sc.getMethodByName("addAssignmentToReturnValue");
-        addConcreteAssignmentToReturnValue = sc.getMethodByName("addConcreteAssignmentToReturnValue");
+
+        addConcreteAssignment = new HashMap<>();
+        for (SootMethod m : sc.getMethods())
+        {
+            if (m.getName().equals("addConcreteAssignment"))
+            {
+                addConcreteAssignment.put(m.getParameterType(1), m);
+            }
+        }
+
         addPathConstraint = sc.getMethodByName("addPathConstraint");
 
         varTypeByte = variableTypeClass.getFieldByName("BYTE");
@@ -555,6 +577,10 @@ public class PathConditionTransformer extends SceneTransformer {
 
                 System.out.println(b); // DEBUG
             }
+        }
+
+        if (!isComplete) {
+            System.out.println("Warning: Complete exploration of program paths will not be possible due to issues listed above");
         }
     }
 }

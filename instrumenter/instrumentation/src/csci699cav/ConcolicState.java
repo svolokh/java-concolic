@@ -156,8 +156,40 @@ public class ConcolicState {
     }
 
     // call this in the caller after the invocation when symbolic execution not available for a method
-    public static void addConcreteAssignmentToReturnValue(Object value) {
-        addAssignment("RET_" + lastFrame, value.toString());
+    public static void addConcreteAssignment(String leftOp, Object value) {
+        addAssignment(leftOp, value.toString());
+    }
+
+    public static void addConcreteAssignment(String leftOp, boolean value) {
+        addAssignment(leftOp, value ? "True" : "False");
+    }
+
+    public static void addConcreteAssignment(String leftOp, byte value) {
+        addAssignment(leftOp, "BitVecVal(" + value + ", 8)");
+    }
+
+    public static void addConcreteAssignment(String leftOp, char value) {
+        addAssignment(leftOp, "BitVecVal(" + (int)value + ", 16)");
+    }
+
+    public static void addConcreteAssignment(String leftOp, double value) {
+        addAssignment(leftOp, "FPVal(" + value + ", Double)");
+    }
+
+    public static void addConcreteAssignment(String leftOp, float value) {
+        addAssignment(leftOp, "FPVal(" + value + ", Float)");
+    }
+
+    public static void addConcreteAssignment(String leftOp, int value) {
+        addAssignment(leftOp, "BitVecVal(" + value + ", 32)");
+    }
+
+    public static void addConcreteAssignment(String leftOp, long value) {
+        addAssignment(leftOp, "BitVecVal(" + value + ", 64)");
+    }
+
+    public static void addConcreteAssignment(String leftOp, short value) {
+        addAssignment(leftOp, "BitVecVal(" + value + ", 16)");
     }
 
     public static void addPathConstraint(int branchId, String condition, boolean conditionConcrete) {
