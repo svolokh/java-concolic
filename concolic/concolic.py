@@ -54,6 +54,28 @@ class PathData:
         self.assignments = assignments
         self.pathConstraints = pathConstraints
 
+class BVInput:
+    def __init__(self, val):
+        self.val = val
+
+    def __repr__(self):
+        return repr(self.val.as_signed_long())
+
+    def inputStr(self):
+        return str(self.val.as_signed_long())
+
+class FPInput:
+    def __init__(self, val):
+        self.val = val
+
+    def __repr__(self):
+        return repr(eval(repr(self.val)))
+
+    def inputStr(self):
+        val = self.val
+        sbits = val.sort().sbits() 
+        return str((val.exponent_as_long() << (sbits - 1)) | (val.significand_as_long()))
+
 def readPathData():
     with open(PATH_DATA_OUTPUT, 'r') as f:
         s = f.read()
@@ -171,15 +193,15 @@ def solveForInputs(sfiStack, sfiPathData):
     else:
         return None, None
 
-def modelValueToInput(inputIndex, pathData, val):
+def modelValueToInput(val):
     if val is None:
-        a = pathData.inputAssignments[inputIndex]
-        assert a.leftOp == 'INPUT{}'.format(inputIndex)
-        return a.rightOp
+        return None
     elif type(val) is z3.BitVecNumRef:
-        return val.as_signed_long()
+        return BVInput(val)
+    elif type(val) is z3.FPNumRef:
+        return FPInput(val)
     else:
-        raise Exception('unsupported model value {}'.format(val))
+        raise Exception('unsupported model value {} (type {})'.format(val, type(val)))
 
 # returns True if the program crashed, otherwise False
 def runInstrumentedProgram(inputs, runCommand):
@@ -187,7 +209,8 @@ def runInstrumentedProgram(inputs, runCommand):
         "JAVA_CONCOLIC_OUTPUT": PATH_DATA_OUTPUT
     }
     for i in range(len(inputs)):
-        env["JAVA_CONCOLIC_INPUT{}".format(i)] = inputs[i]
+        if inputs[i] is not None:
+            env["JAVA_CONCOLIC_INPUT{}".format(i)] = inputs[i].inputStr()
     r = subprocess.run(runCommand, shell=True, env=env, capture_output=True)
     if verbose:
         if len(r.stdout) > 0:
@@ -208,12 +231,12 @@ stack = []
 inputs = []
 while True:
     if inputs is not None:
-        inputRepr = 'random inputs' if len(inputs) == 0 else 'inputs {}'.format(inputs)
+        inputRepr = 'random inputs' if len(inputs) == 0 else 'inputs {}'.format(repr(inputs))
         if verbose:
             print('Trying {} (path {})'.format(inputRepr, list(map(lambda e: e.isTrue, stack))))
         foundError = runInstrumentedProgram(inputs, runCommand)
         if foundError:
-            print('Found error! Inputs: {}'.format(inputs))
+            print('Found error! Inputs: {}'.format(repr(inputs)))
             if stopOnError:
                 exit(0)
         pathData = readPathData()
@@ -243,4 +266,4 @@ while True:
         inputs = []
         for i in range(len(inputVars)):
             inputVar = inputVars['INPUT{}'.format(i)]
-            inputs.append(str(modelValueToInput(i, pathData, model[inputVar])))
+            inputs.append(modelValueToInput(model[inputVar]))

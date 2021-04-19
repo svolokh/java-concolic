@@ -46,14 +46,13 @@ public class PathConditionTransformer extends SceneTransformer {
     private SootField varTypeLong;
     private SootField varTypeFloat;
     private SootField varTypeDouble;
-    private SootField varTypeBoolean;
     private SootField varTypeChar;
 
     private int branchIdCounter = 0;
 
     private SootField sootTypeToSymbolicType(Type t) {
         if (t instanceof BooleanType) {
-            return varTypeBoolean;
+            return varTypeByte;
         } else if (t instanceof ByteType) {
             return varTypeByte;
         } else if (t instanceof CharType) {
@@ -550,7 +549,6 @@ public class PathConditionTransformer extends SceneTransformer {
         varTypeLong = variableTypeClass.getFieldByName("LONG");
         varTypeFloat = variableTypeClass.getFieldByName("FLOAT");
         varTypeDouble = variableTypeClass.getFieldByName("DOUBLE");
-        varTypeBoolean = variableTypeClass.getFieldByName("BOOLEAN");
         varTypeChar = variableTypeClass.getFieldByName("CHAR");
 
         Set<SootMethod> allMethods = new HashSet<>();
@@ -575,7 +573,7 @@ public class PathConditionTransformer extends SceneTransformer {
                 Body b = m.retrieveActiveBody();
                 processMethod(b);
 
-                System.out.println(b); // DEBUG
+                // System.out.println(b); // DEBUG
             }
         }
 

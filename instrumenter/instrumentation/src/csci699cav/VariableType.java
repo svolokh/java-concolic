@@ -7,6 +7,5 @@ public enum VariableType {
     LONG,
     FLOAT,
     DOUBLE,
-    BOOLEAN,
     CHAR
 }
