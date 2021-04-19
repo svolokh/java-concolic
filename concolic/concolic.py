@@ -248,8 +248,8 @@ while True:
                 entry = stack[i]
                 if pc.branchId != entry.branchId or pc.wasTrue != entry.isTrue:
                     raise Exception("program execution did not proceed as expected:\n    expected: {}\n    actual: {}".format(
-                        list(map(lambda e: (e.branchId, e.isTrue), stack)), 
-                        list(map(lambda pc: (pc.branchId, pc.wasTrue),  pathData.pathConstraints))))
+                        list(map(lambda e: e.isTrue, stack)), 
+                        list(map(lambda pc: pc.wasTrue,  pathData.pathConstraints))))
     while len(stack) > 0 and stack[-1].done:
         stack.pop()
     if len(stack) == 0:
