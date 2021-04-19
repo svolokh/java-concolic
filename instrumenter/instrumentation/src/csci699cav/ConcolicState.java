@@ -45,6 +45,11 @@ public class ConcolicState {
         return "RET_" + currentFrame;
     }
 
+    public static String identity(String localOrConstantOp, boolean opConstant) {
+        String op = opConstant ? localOrConstantOp : local(localOrConstantOp);
+        return op;
+    }
+
     public static String unaryOp(String symbol, String localOrConstantOp, boolean opConstant) {
         String op = opConstant ? localOrConstantOp : local(localOrConstantOp);
         return symbol + op;
@@ -54,6 +59,56 @@ public class ConcolicState {
         String leftOp = op1Constant ? localOrConstantOp1 : local(localOrConstantOp1);
         String rightOp = op2Constant ? localOrConstantOp2 : local(localOrConstantOp2);
         return leftOp + symbol + rightOp;
+    }
+
+    public static String cmp(String localOrConstantOp1, boolean op1Constant, String localOrConstantOp2, boolean op2Constant) {
+        String leftOp = op1Constant ? localOrConstantOp1 : local(localOrConstantOp1);
+        String rightOp = op2Constant ? localOrConstantOp2 : local(localOrConstantOp2);
+        return "If(" + leftOp + " > " + rightOp + ", 1, If(" + leftOp + " == " + rightOp + ", 0, -1))";
+    }
+
+    public static String cmpl(String localOrConstantOp1, boolean op1Constant, String localOrConstantOp2, boolean op2Constant) {
+        String leftOp = op1Constant ? localOrConstantOp1 : local(localOrConstantOp1);
+        String rightOp = op2Constant ? localOrConstantOp2 : local(localOrConstantOp2);
+        return "If(Or(fpIsNaN(" + leftOp + "), fpIsNaN(" + rightOp + ")), -1, If(" + leftOp + " > " + rightOp + ", 1, If(" + leftOp + " == " + rightOp + ", 0, -1)))";
+    }
+
+    public static String cmpg(String localOrConstantOp1, boolean op1Constant, String localOrConstantOp2, boolean op2Constant) {
+        String leftOp = op1Constant ? localOrConstantOp1 : local(localOrConstantOp1);
+        String rightOp = op2Constant ? localOrConstantOp2 : local(localOrConstantOp2);
+        return "If(Or(fpIsNaN(" + leftOp + "), fpIsNaN(" + rightOp + ")), 1, If(" + leftOp + " > " + rightOp + ", 1, If(" + leftOp + " == " + rightOp + ", 0, -1)))";
+    }
+
+    // cast from larger to smaller bit-vector
+    public static String bvToBvNarrow(String localOrConstantOp, boolean opConstant, int newSize) {
+        String op = opConstant ? localOrConstantOp : local(localOrConstantOp);
+        return "Extract(" + (newSize - 1) + ", 0, " + op + ")";
+    }
+
+    // cast from smaller to larger bit-vector
+    public static String bvToBvWiden(String localOrConstantOp, boolean opConstant, int deltaSize) {
+        String op = opConstant ? localOrConstantOp : local(localOrConstantOp);
+        return "Concat(BitVecVal(0, " + deltaSize + "), " + op + ")";
+    }
+
+    // cast from bit-vector to floating-point
+    public static String bvToFp(String localOrConstantOp, boolean opConstant, boolean isDouble) {
+        String s = isDouble ? "Double" : "Float";
+        String op = opConstant ? localOrConstantOp : local(localOrConstantOp);
+        return "fpSignedToFP(RNE(), " + op + ", " + s + ")";
+    }
+
+    // cast from floating-point to bit-vector
+    public static String fpToBv(String localOrConstantOp, boolean opConstant, int bitVecSize) {
+        String op = opConstant ? localOrConstantOp : local(localOrConstantOp);
+        return "fpToSBV(RTZ(), " + op + ", BitVecSort(" + bitVecSize + "))";
+    }
+
+    // cast from floating-point to floating-point
+    public static String fpToFp(String localOrConstantOp, boolean opConstant, boolean toDouble) {
+        String s = toDouble ? "Double" : "Float";
+        String op = opConstant ? localOrConstantOp : local(localOrConstantOp);
+        return "fpFPToFP(RNE(), " + op + ", " + s + ")";
     }
 
     public static String peekNextFrame(String fn) {
@@ -89,15 +144,20 @@ public class ConcolicState {
         addAssignment(paramName + "_" + peekNextFrame(fn), rightOp);
     }
 
-    // call this in the caller right after the invocation
-    public static void addAssignmentFromReturnValue(String localVarLeftOp) {
-        addAssignment(localVarLeftOp, "RET_" + lastFrame);
+    // call this in the caller after the invocation
+    public static void addAssignmentFromReturnValue(String leftOp) {
+        addAssignment(leftOp, "RET_" + lastFrame);
     }
 
     // call this in the callee before exiting
     public static void addAssignmentToReturnValue(String rightOp) {
         String currentFrame = frameStack.peek();
         assignments.add(new Assignment("RET_" + currentFrame, rightOp));
+    }
+
+    // call this in the caller after the invocation when symbolic execution not available for a method
+    public static void addConcreteAssignmentToReturnValue(Object value) {
+        addAssignment("RET_" + lastFrame, value.toString());
     }
 
     public static void addPathConstraint(int branchId, String condition, boolean conditionConcrete) {

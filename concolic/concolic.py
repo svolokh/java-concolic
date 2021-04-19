@@ -1,9 +1,14 @@
 import z3
+from z3 import If, Or, Extract, Concat, BitVecVal, BitVecSort, RNE, RTZ, fpSignedToFP, fpToSBV, fpFPToFP, fpIsNaN
+
 import subprocess
 import sys
 import traceback
 import itertools
 import json
+
+Float = z3.FPSort(8, 24)
+Double = z3.FPSort(11, 53)
 
 JAVA_HOME = "/usr/lib/jvm/java-8-openjdk-amd64"
 JAVA = "{}/bin/java".format(JAVA_HOME)
@@ -110,15 +115,17 @@ def makeZ3Var(v):
     elif t == 'LONG':
         return z3.BitVec(name, 64)
     elif t == 'FLOAT':
-        return z3.FP(name, z3.FPSort(8, 23))
+        return z3.FP(name, Float)
     elif t == 'DOUBLE':
-        return z3.FP(name, z3.FPSort(11, 52))
+        return z3.FP(name, Double)
     elif t == 'CHAR':
         return z3.BitVec(name, 16)
     else:
         raise Exception("unsupported type {}".format(t))
 
 def solveForInputs(sfiStack, sfiPathData):
+    z3.set_default_rounding_mode(RNE())
+
     sfiInputVars = {}
     for sfiV in itertools.chain(sfiPathData.inputVariables, sfiPathData.variables):
         sfiVar = makeZ3Var(sfiV)

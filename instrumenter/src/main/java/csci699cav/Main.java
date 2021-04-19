@@ -1,9 +1,6 @@
 package csci699cav;
 
-import soot.PackManager;
-import soot.Scene;
-import soot.SootClass;
-import soot.Transform;
+import soot.*;
 import soot.options.Options;
 
 public class Main {
@@ -21,6 +18,7 @@ public class Main {
         Scene.v().addBasicClass("java.util.ArrayList", SootClass.SIGNATURES);
         Scene.v().addBasicClass("java.lang.ThreadGroup", SootClass.SIGNATURES);
         Scene.v().addBasicClass("java.util.Enumeration", SootClass.SIGNATURES);
+        PhaseOptions.v().setPhaseOption("cg", "off");
         PackManager.v().getPack("wjtp").add(new Transform("wjtp.pct", new PathConditionTransformer()));
         soot.Main.main(args);
     }
