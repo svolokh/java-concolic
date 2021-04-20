@@ -1,5 +1,5 @@
 {
     "runCommand": "java -cp ../../instrumenter/instrumentation/bin:sootOutput MyClass",
-    "verbose": true,
+    "verbose": false,
     "stopOnError": false
 }

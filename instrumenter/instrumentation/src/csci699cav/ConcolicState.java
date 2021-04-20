@@ -17,6 +17,28 @@ public class ConcolicState {
     private static Stack<String> frameStack = new Stack<String>();
     private static String lastFrame = null;
     private static int frameCounter = 0;
+    private static int arrayCounter = 0;
+
+    private static String defaultValue(VariableType type) {
+        switch(type) {
+            case BYTE:
+                return "BitVecVal(0, 8)";
+            case SHORT:
+                return "BitVecVal(0, 16)";
+            case INT:
+                return "BitVecVal(0, 32)";
+            case LONG:
+                return "BitVecVal(0, 64)";
+            case FLOAT:
+                return "FPVal(0, Float)";
+            case DOUBLE:
+                return "FPVal(0, Float)";
+            case CHAR:
+                return "BitVecVal(0, 16)";
+            default:
+                return null;
+        }
+    }
 
     public static void init() {
         Runtime.getRuntime().addShutdownHook(new Thread(new ShutdownHook()));
@@ -64,19 +86,19 @@ public class ConcolicState {
     public static String cmp(String localOrConstantOp1, boolean op1Constant, String localOrConstantOp2, boolean op2Constant) {
         String leftOp = op1Constant ? localOrConstantOp1 : local(localOrConstantOp1);
         String rightOp = op2Constant ? localOrConstantOp2 : local(localOrConstantOp2);
-        return "If(" + leftOp + " > " + rightOp + ", 1, If(" + leftOp + " == " + rightOp + ", 0, -1))";
+        return "If(" + leftOp + " > " + rightOp + ", BitVecVal(1, 8), If(" + leftOp + " == " + rightOp + ", BitVecVal(0, 8), BitVecVal(-1, 8)))";
     }
 
     public static String cmpl(String localOrConstantOp1, boolean op1Constant, String localOrConstantOp2, boolean op2Constant) {
         String leftOp = op1Constant ? localOrConstantOp1 : local(localOrConstantOp1);
         String rightOp = op2Constant ? localOrConstantOp2 : local(localOrConstantOp2);
-        return "If(Or(fpIsNaN(" + leftOp + "), fpIsNaN(" + rightOp + ")), -1, If(" + leftOp + " > " + rightOp + ", 1, If(" + leftOp + " == " + rightOp + ", 0, -1)))";
+        return "If(Or(fpIsNaN(" + leftOp + "), fpIsNaN(" + rightOp + ")), BitVecVal(-1, 8), If(" + leftOp + " > " + rightOp + ", BitVecVal(1, 8), If(" + leftOp + " == " + rightOp + ", BitVecVal(0, 8), BitVecVal(-1, 8))))";
     }
 
     public static String cmpg(String localOrConstantOp1, boolean op1Constant, String localOrConstantOp2, boolean op2Constant) {
         String leftOp = op1Constant ? localOrConstantOp1 : local(localOrConstantOp1);
         String rightOp = op2Constant ? localOrConstantOp2 : local(localOrConstantOp2);
-        return "If(Or(fpIsNaN(" + leftOp + "), fpIsNaN(" + rightOp + ")), 1, If(" + leftOp + " > " + rightOp + ", 1, If(" + leftOp + " == " + rightOp + ", 0, -1)))";
+        return "If(Or(fpIsNaN(" + leftOp + "), fpIsNaN(" + rightOp + ")), BitVecVal(1, 8), If(" + leftOp + " > " + rightOp + ", BitVecVal(1, 8), If(" + leftOp + " == " + rightOp + ", BitVecVal(0, 8), BitVecVal(-1, 8))))";
     }
 
     // cast from larger to smaller bit-vector
@@ -109,6 +131,43 @@ public class ConcolicState {
         String s = toDouble ? "Double" : "Float";
         String op = opConstant ? localOrConstantOp : local(localOrConstantOp);
         return "fpFPToFP(RNE(), " + op + ", " + s + ")";
+    }
+
+    public static String newarray() {
+        ++arrayCounter;
+        return "BitVecVal(" + Integer.toString(arrayCounter) + ", 32)";
+    }
+
+    public static void initArray(String id, VariableType baseType, String localOrConstantSize, boolean sizeConstant) {
+        String arrVar = baseType.name() + "_Arrays";
+        String arrLenVar = baseType.name() + "_ArrayLengths";
+        String size = sizeConstant ? localOrConstantSize : local(localOrConstantSize);
+        addAssignment(arrLenVar, "Store(" + arrLenVar + ", " + id + ", " + size + ")");
+        addAssignment(arrVar, "Store(" + arrVar + ", " + id + ", K(BitVecSort(32), " + defaultValue(baseType) + "))");
+    }
+
+    public static String arrayAccess(VariableType baseType, String localOrConstantId, boolean idConstant, String localOrConstantIndex, boolean indexConstant) {
+        String arrVar = baseType.name() + "_Arrays";
+        String id = idConstant ? localOrConstantId : local(localOrConstantId);
+        String index = indexConstant ? localOrConstantIndex : local(localOrConstantIndex);
+        return "Select(Select(" + arrVar + ", " + id + "), " + index + ")";
+    }
+
+    public static void addArrayStore(VariableType baseType,
+                                     String localOrConstantId, boolean idConstant,
+                                     String localOrConstantIndex, boolean indexConstant,
+                                     String localOrConstantValue, boolean valueConstant)
+    {
+        String arrVar = baseType.name() + "_Arrays";
+        String id = idConstant ? localOrConstantId : local(localOrConstantId);
+        String index = indexConstant ? localOrConstantIndex : local(localOrConstantIndex);
+        String value = valueConstant ? localOrConstantValue : local(localOrConstantValue);
+        addAssignment(arrVar, "Store(" + arrVar + ", " + id + ", Store(Select(" + arrVar + ", " + id + "), " + index + ", " + value + "))");
+    }
+
+    public static String lengthof(VariableType baseType, String localOrConstantId, boolean idConstant) {
+        String id = idConstant ? localOrConstantId : local(localOrConstantId);
+        return "Select(" + baseType.name() + "_ArrayLengths, " + id + ")";
     }
 
     public static String peekNextFrame(String fn) {

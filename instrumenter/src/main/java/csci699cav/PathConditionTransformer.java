@@ -4,6 +4,7 @@ import CallGraph.NewNode;
 import CallGraph.StringCallGraph;
 import soot.*;
 import soot.jimple.*;
+import soot.jimple.internal.JNewArrayExpr;
 import soot.jimple.toolkits.callgraph.CHATransformer;
 import soot.tagkit.AnnotationTag;
 import soot.tagkit.VisibilityAnnotationTag;
@@ -29,6 +30,11 @@ public class PathConditionTransformer extends SceneTransformer {
     private SootMethod bvToFp;
     private SootMethod fpToBv;
     private SootMethod fpToFp;
+    private SootMethod newarray;
+    private SootMethod initArray;
+    private SootMethod arrayAccess;
+    private SootMethod addArrayStore;
+    private SootMethod lengthof;
     private SootMethod newFrame;
     private SootMethod exitFrame;
     private SootMethod addVariable;
@@ -67,6 +73,8 @@ public class PathConditionTransformer extends SceneTransformer {
             return varTypeLong;
         } else if (t instanceof ShortType) {
             return varTypeShort;
+        } else if (t instanceof ArrayType) {
+            return varTypeInt;
         } else {
             throw new IllegalArgumentException("unsupported type " + t);
         }
@@ -76,30 +84,77 @@ public class PathConditionTransformer extends SceneTransformer {
         return "ST_" + sf.getDeclaringClass().getName().replace(".", "_") + "_" + sf.getName();
     }
 
-    private String constantToSymbolicExpr(Constant c) {
-        if (c instanceof IntConstant || c instanceof StringConstant) {
-            return c.toString();
+    private String constantToSymbolicExpr(Constant c, Type type) {
+        if (c instanceof NullConstant) {
+            return "BitVecVal(0, 32)";
+        } else if (c instanceof IntConstant) {
+            if (type instanceof BooleanType) {
+                return "BitVecVal(" + c.toString() + ", 8)";
+            } else if (type instanceof ByteType) {
+                return "BitVecVal(" + c.toString() + ", 8)";
+            } else if (type instanceof CharType) {
+                return "BitVecVal(" + c.toString() + ", 16)";
+            } else if (type instanceof IntType) {
+                return "BitVecVal(" + c.toString() + ", 32)";
+            } else if (type instanceof ShortType) {
+                return "BitVecVal(" + c.toString() + ", 16)";
+            } else {
+                throw new IllegalArgumentException("unsupported int constant assigned to type " + type);
+            }
         } else if (c instanceof LongConstant) {
-            return Long.toString(((LongConstant)c).value);
+            return "BitVecVal(" + ((LongConstant)c).value + ", 64)";
         } else if (c instanceof FloatConstant) {
-            return Float.toString(((FloatConstant)c).value);
+            return "FPVal(" + ((FloatConstant)c).value + ", Float)";
         } else if (c instanceof DoubleConstant) {
-            return Double.toString(((DoubleConstant)c).value);
+            return "FPVal(" + ((DoubleConstant)c).value + ", Double)";
         } else {
             throw new IllegalArgumentException("unsupported constant " + c + " (" + c.getClass() + ")");
         }
     }
 
-    // generates statement to produce a symbolic value for the given value
-    private Unit obtainSymbolicValue(Value v, Local outVar) {
+    // generates statements to produce a symbolic value for the given value
+    private List<Unit> obtainSymbolicValue(Value v, Type type, Local varTypeTmp, Local outVar) {
         if (v instanceof Constant) {
-            return Jimple.v().newAssignStmt(outVar, StringConstant.v(constantToSymbolicExpr((Constant)v)));
+            return Collections.singletonList(
+                    Jimple.v().newAssignStmt(outVar, StringConstant.v(constantToSymbolicExpr((Constant)v, type))));
         } else if (v instanceof Local) {
             Local l = (Local)v;
-            return Jimple.v().newAssignStmt(outVar, Jimple.v().newStaticInvokeExpr(local.makeRef(), StringConstant.v(l.getName())));
+            return Collections.singletonList(
+                    Jimple.v().newAssignStmt(outVar, Jimple.v().newStaticInvokeExpr(local.makeRef(), StringConstant.v(l.getName()))));
         } else if (v instanceof StaticFieldRef) {
             StaticFieldRef sfr = (StaticFieldRef)v;
-            return Jimple.v().newAssignStmt(outVar, StringConstant.v(varNameForStaticField(sfr.getField())));
+            return Collections.singletonList(
+                    Jimple.v().newAssignStmt(outVar, StringConstant.v(varNameForStaticField(sfr.getField()))));
+        } else if (v instanceof ArrayRef) {
+            ArrayRef ar = (ArrayRef)v;
+            Type baseType = ((ArrayType)ar.getBase().getType()).baseType;
+
+            boolean idConstant;
+            String id;
+            if (ar.getBase() instanceof Constant) {
+                idConstant = true;
+                id = constantToSymbolicExpr((Constant)ar.getBase(), type);
+            } else {
+                idConstant = false;
+                id = ((Local)ar.getBase()).getName();
+            }
+
+            boolean indexConstant;
+            String index;
+            if (ar.getIndex() instanceof Constant) {
+                indexConstant = true;
+                index = constantToSymbolicExpr((Constant)ar.getIndex(), type);
+            } else {
+                indexConstant = false;
+                index = ((Local)ar.getIndex()).getName();
+            }
+
+            return Arrays.asList(
+                    Jimple.v().newAssignStmt(varTypeTmp, Jimple.v().newStaticFieldRef(sootTypeToSymbolicType(baseType).makeRef())),
+                    Jimple.v().newAssignStmt(outVar, Jimple.v().newStaticInvokeExpr(arrayAccess.makeRef(),
+                            varTypeTmp,
+                            StringConstant.v(id), IntConstant.v(idConstant ? 1 : 0),
+                            StringConstant.v(index), IntConstant.v(indexConstant ? 1 : 0))));
         } else if (v instanceof CastExpr) {
             CastExpr expr = (CastExpr)v;
             Type from = expr.getOp().getType();
@@ -108,7 +163,7 @@ public class PathConditionTransformer extends SceneTransformer {
             boolean opConstant;
             String op;
             if (expr.getOp() instanceof Constant) {
-                op = constantToSymbolicExpr((Constant)expr.getOp());
+                op = constantToSymbolicExpr((Constant)expr.getOp(), type);
                 opConstant = true;
             } else {
                 op = ((Local)expr.getOp()).getName();
@@ -132,29 +187,35 @@ public class PathConditionTransformer extends SceneTransformer {
                     int fromSize = Utils.bitVectorSize(fromPrim);
                     int toSize = Utils.bitVectorSize(toPrim);
                     if (toSize < fromSize) {
-                        return Jimple.v().newAssignStmt(outVar,
+                        return Collections.singletonList(
+                                Jimple.v().newAssignStmt(outVar,
                                 Jimple.v().newStaticInvokeExpr(bvToBvNarrow.makeRef(), StringConstant.v(op),
-                                        IntConstant.v(opConstant ? 1 : 0), IntConstant.v(toSize)));
+                                        IntConstant.v(opConstant ? 1 : 0), IntConstant.v(toSize))));
                     } else if (toSize > fromSize) {
-                        return Jimple.v().newAssignStmt(outVar,
+                        return Collections.singletonList(
+                                Jimple.v().newAssignStmt(outVar,
                                 Jimple.v().newStaticInvokeExpr(bvToBvWiden.makeRef(), StringConstant.v(op),
-                                        IntConstant.v(opConstant ? 1 : 0), IntConstant.v(toSize - fromSize)));
+                                        IntConstant.v(opConstant ? 1 : 0), IntConstant.v(toSize - fromSize))));
                     } else {
-                        return Jimple.v().newAssignStmt(outVar,
-                                Jimple.v().newStaticInvokeExpr(identity.makeRef(), StringConstant.v(op), IntConstant.v(opConstant ? 1 : 0)));
+                        return Collections.singletonList(
+                                Jimple.v().newAssignStmt(outVar,
+                                Jimple.v().newStaticInvokeExpr(identity.makeRef(), StringConstant.v(op), IntConstant.v(opConstant ? 1 : 0))));
                     }
                 } else if (fromBv) { // BV => FP
                     boolean isDouble = toPrim instanceof DoubleType;
-                    return Jimple.v().newAssignStmt(outVar, Jimple.v().newStaticInvokeExpr(bvToFp.makeRef(), StringConstant.v(op), IntConstant.v(opConstant ? 1 : 0),
-                            IntConstant.v(isDouble ? 1 : 0)));
+                    return Collections.singletonList(
+                            Jimple.v().newAssignStmt(outVar, Jimple.v().newStaticInvokeExpr(bvToFp.makeRef(), StringConstant.v(op), IntConstant.v(opConstant ? 1 : 0),
+                            IntConstant.v(isDouble ? 1 : 0))));
                 } else if (toBv) { // FP => BV
                     int bitVecSize = Utils.bitVectorSize(toPrim);
-                    return Jimple.v().newAssignStmt(outVar, Jimple.v().newStaticInvokeExpr(fpToBv.makeRef(), StringConstant.v(op), IntConstant.v(opConstant ? 1 : 0),
-                            IntConstant.v(bitVecSize)));
+                    return Collections.singletonList(
+                            Jimple.v().newAssignStmt(outVar, Jimple.v().newStaticInvokeExpr(fpToBv.makeRef(), StringConstant.v(op), IntConstant.v(opConstant ? 1 : 0),
+                            IntConstant.v(bitVecSize))));
                 } else { // FP => FP
                     boolean toDouble = toPrim instanceof DoubleType;
-                    return Jimple.v().newAssignStmt(outVar, Jimple.v().newStaticInvokeExpr(fpToFp.makeRef(), StringConstant.v(op), IntConstant.v(opConstant ? 1 : 0),
-                            IntConstant.v(toDouble ? 1 : 0)));
+                    return Collections.singletonList(
+                            Jimple.v().newAssignStmt(outVar, Jimple.v().newStaticInvokeExpr(fpToFp.makeRef(), StringConstant.v(op), IntConstant.v(opConstant ? 1 : 0),
+                            IntConstant.v(toDouble ? 1 : 0))));
                 }
             } else {
                 throw new IllegalArgumentException("unsupported cast " + expr);
@@ -166,44 +227,51 @@ public class PathConditionTransformer extends SceneTransformer {
             boolean opConstant;
             String op;
             if (e.getOp() instanceof Constant) {
-                op = constantToSymbolicExpr((Constant)e.getOp());
+                op = constantToSymbolicExpr((Constant)e.getOp(), type);
                 opConstant = true;
             } else {
                 op = ((Local)e.getOp()).getName();
                 opConstant = false;
             }
 
-            Local l = (Local)e.getOp();
-
-            String symbol;
             if (e instanceof NegExpr)
             {
-                symbol = "-";
+                return Collections.singletonList(
+                        Jimple.v().newAssignStmt(outVar, Jimple.v().newStaticInvokeExpr(unaryOp.makeRef(),
+                        StringConstant.v("-"), StringConstant.v(op), IntConstant.v(opConstant ? 1 : 0))));
             } else if (e instanceof LengthExpr)
             {
-                // TODO
-                throw new UnsupportedOperationException("arrays not yet supported");
+                LengthExpr le = (LengthExpr)e;
+                ArrayType arrType = (ArrayType)le.getOp().getType();
+                return Arrays.asList(
+                        Jimple.v().newAssignStmt(varTypeTmp, Jimple.v().newStaticFieldRef(sootTypeToSymbolicType(arrType.baseType).makeRef())),
+                        Jimple.v().newAssignStmt(outVar, Jimple.v().newStaticInvokeExpr(lengthof.makeRef(), varTypeTmp, StringConstant.v(op), IntConstant.v(opConstant ? 1 : 0))));
             } else
             {
                 throw new IllegalArgumentException("unexpected UnopExpr: " + e + " (" + e.getClass().getName() + ")");
             }
-
-            return Jimple.v().newAssignStmt(outVar, Jimple.v().newStaticInvokeExpr(unaryOp.makeRef(),
-                    StringConstant.v(symbol), StringConstant.v(op), IntConstant.v(opConstant ? 1 : 0)));
         } else if (v instanceof BinopExpr) {
             BinopExpr e = (BinopExpr)v;
+
+            Type constantType = null;
+            if (!(e.getOp1() instanceof Constant)) {
+                constantType = ((Local)e.getOp1()).getType();
+            }
+            if (!(e.getOp2() instanceof Constant)) {
+                constantType = ((Local)e.getOp2()).getType();
+            }
 
             boolean op1Constant, op2Constant;
             String op1, op2;
             if (e.getOp1() instanceof Constant) {
-                op1 = constantToSymbolicExpr((Constant)e.getOp1());
+                op1 = constantToSymbolicExpr((Constant)e.getOp1(), constantType);
                 op1Constant = true;
             } else {
                 op1 = ((Local)e.getOp1()).getName();
                 op1Constant = false;
             }
             if (e.getOp2() instanceof Constant) {
-                op2 = constantToSymbolicExpr((Constant)e.getOp2());
+                op2 = constantToSymbolicExpr((Constant)e.getOp2(), constantType);
                 op2Constant = true;
             } else {
                 op2 = ((Local)e.getOp2()).getName();
@@ -211,18 +279,22 @@ public class PathConditionTransformer extends SceneTransformer {
             }
 
             if (e instanceof CmpExpr) {
-                return Jimple.v().newAssignStmt(outVar, Jimple.v().newStaticInvokeExpr(cmp.makeRef(),
-                        StringConstant.v(op1), IntConstant.v(op1Constant ? 1 : 0), StringConstant.v(op2), IntConstant.v(op2Constant ? 1 : 0)));
+                return Collections.singletonList(
+                        Jimple.v().newAssignStmt(outVar, Jimple.v().newStaticInvokeExpr(cmp.makeRef(),
+                        StringConstant.v(op1), IntConstant.v(op1Constant ? 1 : 0), StringConstant.v(op2), IntConstant.v(op2Constant ? 1 : 0))));
             } else if (e instanceof CmplExpr) {
-                return Jimple.v().newAssignStmt(outVar, Jimple.v().newStaticInvokeExpr(cmpl.makeRef(),
-                        StringConstant.v(op1), IntConstant.v(op1Constant ? 1 : 0), StringConstant.v(op2), IntConstant.v(op2Constant ? 1 : 0)));
+                return Collections.singletonList(
+                        Jimple.v().newAssignStmt(outVar, Jimple.v().newStaticInvokeExpr(cmpl.makeRef(),
+                        StringConstant.v(op1), IntConstant.v(op1Constant ? 1 : 0), StringConstant.v(op2), IntConstant.v(op2Constant ? 1 : 0))));
             } else if (e instanceof CmpgExpr) {
-                return Jimple.v().newAssignStmt(outVar, Jimple.v().newStaticInvokeExpr(cmpg.makeRef(),
-                        StringConstant.v(op1), IntConstant.v(op1Constant ? 1 : 0), StringConstant.v(op2), IntConstant.v(op2Constant ? 1 : 0)));
+                return Collections.singletonList(
+                        Jimple.v().newAssignStmt(outVar, Jimple.v().newStaticInvokeExpr(cmpg.makeRef(),
+                        StringConstant.v(op1), IntConstant.v(op1Constant ? 1 : 0), StringConstant.v(op2), IntConstant.v(op2Constant ? 1 : 0))));
             } else {
-                return Jimple.v().newAssignStmt(outVar, Jimple.v().newStaticInvokeExpr(binaryOp.makeRef(),
+                return Collections.singletonList(
+                        Jimple.v().newAssignStmt(outVar, Jimple.v().newStaticInvokeExpr(binaryOp.makeRef(),
                         StringConstant.v(e.getSymbol()),
-                        StringConstant.v(op1), IntConstant.v(op1Constant ? 1 : 0), StringConstant.v(op2), IntConstant.v(op2Constant ? 1 : 0)));
+                        StringConstant.v(op1), IntConstant.v(op1Constant ? 1 : 0), StringConstant.v(op2), IntConstant.v(op2Constant ? 1 : 0))));
             }
         } else {
             throw new IllegalArgumentException("unsupported value: " + v + " (" + v.getClass().getName() + ")");
@@ -237,7 +309,7 @@ public class PathConditionTransformer extends SceneTransformer {
             Body b = m.retrieveActiveBody();
             int i = 0;
             for (Local paramLocal : b.getParameterLocals()) {
-                output.add(obtainSymbolicValue(expr.getArg(i), opTmp));
+                output.addAll(obtainSymbolicValue(expr.getArg(i), m.getParameterType(i), null, opTmp));
                 output.add(Jimple.v().newInvokeStmt(Jimple.v().newStaticInvokeExpr(addAssignmentToParameter.makeRef(),
                         StringConstant.v(paramLocal.getName()),
                         StringConstant.v(b.getMethod().getName()),
@@ -393,6 +465,7 @@ public class PathConditionTransformer extends SceneTransformer {
             }
         }
 
+        Type returnType = body.getMethod().getReturnType();
         List<Unit> returnStmts = units.stream().filter(u -> u instanceof ReturnStmt || u instanceof ReturnVoidStmt).collect(Collectors.toList());
         for (Unit u : returnStmts)
         {
@@ -404,10 +477,10 @@ public class PathConditionTransformer extends SceneTransformer {
             {
                 ReturnStmt retStmt = (ReturnStmt)u;
                 Value retVal = retStmt.getOp();
-                units.insertBefore(Arrays.asList(
-                        obtainSymbolicValue(retVal, opTmp1),
-                        Jimple.v().newInvokeStmt(Jimple.v().newStaticInvokeExpr(addAssignmentToReturnValue.makeRef(), opTmp1))
-                ), exitFrameStmt);
+                List<Unit> toInsert = new LinkedList<>();
+                toInsert.addAll(obtainSymbolicValue(retVal, returnType, varTypeTmp, opTmp1));
+                toInsert.add(Jimple.v().newInvokeStmt(Jimple.v().newStaticInvokeExpr(addAssignmentToReturnValue.makeRef(), opTmp1)));
+                units.insertBefore(toInsert, exitFrameStmt);
             }
         }
 
@@ -426,19 +499,19 @@ public class PathConditionTransformer extends SceneTransformer {
                     {
                         if (expr.getMethod().getName().startsWith("input"))
                         {
-                            units.insertAfter(Arrays.asList(
-                                    obtainSymbolicValue(leftOp, opTmp1),
-                                    Jimple.v().newAssignStmt(opTmp2, Jimple.v().newStaticInvokeExpr(lastInput.makeRef())),
-                                    Jimple.v().newInvokeStmt(Jimple.v().newStaticInvokeExpr(addAssignment.makeRef(), opTmp1, opTmp2))
-                            ), s);
+                            List<Unit> toInsert = new LinkedList<>();
+                            toInsert.addAll(obtainSymbolicValue(leftOp, leftOp.getType(), varTypeTmp, opTmp1));
+                            toInsert.add(Jimple.v().newAssignStmt(opTmp2, Jimple.v().newStaticInvokeExpr(lastInput.makeRef())));
+                            toInsert.add(Jimple.v().newInvokeStmt(Jimple.v().newStaticInvokeExpr(addAssignment.makeRef(), opTmp1, opTmp2)));
+                            units.insertAfter(toInsert, s);
                         } else {
                             throw new IllegalArgumentException("encountered unexpected method call from Concolic class: " + expr);
                         }
                     } else
                     {
-                        List<Unit> toInsert = new ArrayList<>();
+                        List<Unit> toInsert = new LinkedList<>();
                         symbolicInvocation(expr, opTmp1, toInsert);
-                        toInsert.add(obtainSymbolicValue(leftOp, opTmp1));
+                        toInsert.addAll(obtainSymbolicValue(leftOp, leftOp.getType(), varTypeTmp, opTmp1));
                         units.insertBefore(toInsert, s);
                         toInsert.clear();
                         if (!expr.getMethod().hasTag(InstrumentedTag.NAME)) {
@@ -457,16 +530,80 @@ public class PathConditionTransformer extends SceneTransformer {
                         }
                         units.insertAfter(toInsert, s);
                     }
-                } else {
+                } else if (rightOp instanceof NewArrayExpr) {
+                    NewArrayExpr nae = (NewArrayExpr)rightOp;
+
+                    boolean sizeConstant;
+                    String size;
+                    if (nae.getSize() instanceof Constant) {
+                        size = constantToSymbolicExpr((Constant)nae.getSize(), IntType.v());
+                        sizeConstant = true;
+                    } else {
+                        size = ((Local)nae.getSize()).getName();
+                        sizeConstant = false;
+                    }
+
+                    List<Unit> toInsert = new LinkedList<>();
+                    toInsert.addAll(obtainSymbolicValue(leftOp, leftOp.getType(), varTypeTmp, opTmp1));
+                    toInsert.addAll(Arrays.asList(
+                            Jimple.v().newAssignStmt(opTmp2, Jimple.v().newStaticInvokeExpr(newarray.makeRef())),
+                            Jimple.v().newAssignStmt(varTypeTmp, Jimple.v().newStaticFieldRef(sootTypeToSymbolicType(nae.getBaseType()).makeRef())),
+                            Jimple.v().newInvokeStmt(Jimple.v().newStaticInvokeExpr(addAssignment.makeRef(), opTmp1, opTmp2)),
+                            Jimple.v().newInvokeStmt(Jimple.v().newStaticInvokeExpr(initArray.makeRef(), opTmp2, varTypeTmp, StringConstant.v(size), IntConstant.v(sizeConstant ? 1 : 0)))
+                    ));
+                    units.insertBefore(toInsert, s);
+                } else if (leftOp instanceof ArrayRef) {
+                    ArrayRef ar = (ArrayRef)leftOp;
+                    Type baseType = ((ArrayType)ar.getBase().getType()).baseType;
+
+                    boolean idConstant;
+                    String id;
+                    if (ar.getBase() instanceof Constant) {
+                        idConstant = true;
+                        id = constantToSymbolicExpr((Constant)ar.getBase(), IntType.v());
+                    } else {
+                        idConstant = false;
+                        id = ((Local)ar.getBase()).getName();
+                    }
+
+                    boolean indexConstant;
+                    String index;
+                    if (ar.getIndex() instanceof Constant) {
+                        indexConstant = true;
+                        index = constantToSymbolicExpr((Constant)ar.getIndex(), IntType.v());
+                    } else {
+                        indexConstant = false;
+                        index = ((Local)ar.getIndex()).getName();
+                    }
+
+                    boolean valueConstant;
+                    String value;
+                    if (rightOp instanceof Constant) {
+                        valueConstant = true;
+                        value = constantToSymbolicExpr((Constant)rightOp, baseType);
+                    } else {
+                        valueConstant = false;
+                        value = ((Local)rightOp).getName();
+                    }
+
                     units.insertBefore(Arrays.asList(
-                            obtainSymbolicValue(leftOp, opTmp1),
-                            obtainSymbolicValue(rightOp, opTmp2),
-                            Jimple.v().newInvokeStmt(Jimple.v().newStaticInvokeExpr(addAssignment.makeRef(), opTmp1, opTmp2))
+                            Jimple.v().newAssignStmt(varTypeTmp, Jimple.v().newStaticFieldRef(sootTypeToSymbolicType(baseType).makeRef())),
+                            Jimple.v().newInvokeStmt(Jimple.v().newStaticInvokeExpr(addArrayStore.makeRef(),
+                                    varTypeTmp,
+                                    StringConstant.v(id), IntConstant.v(idConstant ? 1 : 0),
+                                    StringConstant.v(index), IntConstant.v(indexConstant ? 1 : 0),
+                                    StringConstant.v(value), IntConstant.v(valueConstant ? 1 : 0)))
                     ), s);
+                } else {
+                    List<Unit> toInsert = new LinkedList<>();
+                    toInsert.addAll(obtainSymbolicValue(leftOp, leftOp.getType(), varTypeTmp, opTmp1));
+                    toInsert.addAll(obtainSymbolicValue(rightOp, leftOp.getType() /* this is intentional */, varTypeTmp, opTmp2));
+                    toInsert.add(Jimple.v().newInvokeStmt(Jimple.v().newStaticInvokeExpr(addAssignment.makeRef(), opTmp1, opTmp2)));
+                    units.insertBefore(toInsert, s);
                 }
             } else if (s instanceof InvokeStmt) {
                 InvokeStmt stmt = (InvokeStmt)s;
-                List<Unit> toInsert = new ArrayList<>();
+                List<Unit> toInsert = new LinkedList<>();
                 symbolicInvocation(stmt.getInvokeExpr(), opTmp1, toInsert);
                 if (!toInsert.isEmpty()) {
                     units.insertBefore(toInsert, s);
@@ -483,15 +620,16 @@ public class PathConditionTransformer extends SceneTransformer {
                 IfStmt stmt = (IfStmt)s;
                 int branchId = ((BranchIdTag)stmt.getTag(BranchIdTag.NAME)).id;
                 Unit yes = Jimple.v().newAssignStmt(condTmp, IntConstant.v(1));
-                Unit obtainSym = obtainSymbolicValue(stmt.getCondition(), opTmp1);
-                units.insertBefore(Arrays.asList(
+                List<Unit> obtainSym = obtainSymbolicValue(stmt.getCondition(), BooleanType.v(), varTypeTmp, opTmp1);
+                List<Unit> toInsert = new LinkedList<>();
+                toInsert.addAll(Arrays.asList(
                         Jimple.v().newIfStmt(stmt.getCondition(), yes),
                         Jimple.v().newAssignStmt(condTmp, IntConstant.v(0)),
-                        Jimple.v().newGotoStmt(obtainSym),
-                        yes,
-                        obtainSym,
-                        Jimple.v().newInvokeStmt(Jimple.v().newStaticInvokeExpr(addPathConstraint.makeRef(), IntConstant.v(branchId), opTmp1, condTmp))
-                ), s);
+                        Jimple.v().newGotoStmt(obtainSym.get(0)),
+                        yes));
+                toInsert.addAll(obtainSym);
+                toInsert.add(Jimple.v().newInvokeStmt(Jimple.v().newStaticInvokeExpr(addPathConstraint.makeRef(), IntConstant.v(branchId), opTmp1, condTmp)));
+                units.insertBefore(toInsert, s);
             }
         }
 
@@ -523,6 +661,11 @@ public class PathConditionTransformer extends SceneTransformer {
         bvToFp = sc.getMethodByName("bvToFp");
         fpToBv = sc.getMethodByName("fpToBv");
         fpToFp = sc.getMethodByName("fpToFp");
+        newarray = sc.getMethodByName("newarray");
+        initArray = sc.getMethodByName("initArray");
+        arrayAccess = sc.getMethodByName("arrayAccess");
+        addArrayStore = sc.getMethodByName("addArrayStore");
+        lengthof = sc.getMethodByName("lengthof");
         newFrame = sc.getMethodByName("newFrame");
         exitFrame = sc.getMethodByName("exitFrame");
         addVariable = sc.getMethodByName("addVariable");
@@ -573,7 +716,7 @@ public class PathConditionTransformer extends SceneTransformer {
                 Body b = m.retrieveActiveBody();
                 processMethod(b);
 
-                // System.out.println(b); // DEBUG
+                System.out.println(b); // DEBUG
             }
         }
 

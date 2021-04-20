@@ -1,5 +1,5 @@
 import z3
-from z3 import If, Or, Extract, Concat, BitVecVal, BitVecSort, RNE, RTZ, fpSignedToFP, fpToSBV, fpFPToFP, fpIsNaN
+from z3 import If, Or, Extract, Concat, BitVecVal, FPVal, BitVecSort, RNE, RTZ, fpSignedToFP, fpToSBV, fpFPToFP, fpIsNaN, K, Select, Store, BV2Int
 
 import subprocess
 import sys
@@ -126,9 +126,7 @@ def readPathData():
 def makeZ3Var(v):
     t = v.varType
     name = v.varName
-    if t == 'BOOLEAN':
-        return z3.Bool(name)
-    elif t == 'BYTE':
+    if t == 'BYTE':
         return z3.BitVec(name, 8)
     elif t == 'SHORT':
         return z3.BitVec(name, 16)
@@ -147,6 +145,20 @@ def makeZ3Var(v):
 
 def solveForInputs(sfiStack, sfiPathData):
     z3.set_default_rounding_mode(RNE())
+
+    # variables for arrays
+    exec("BYTE_Arrays = z3.Array('BYTE_Arrays', z3.BitVecSort(32), z3.ArraySort(z3.BitVecSort(32), z3.BitVecSort(8)))")
+    exec("BYTE_ArrayLengths = z3.Array('BYTE_ArrayLengths', z3.BitVecSort(32), z3.BitVecSort(32))")
+    exec("SHORT_Arrays = z3.Array('SHORT_Arrays', z3.BitVecSort(32), z3.ArraySort(z3.BitVecSort(32), z3.BitVecSort(16)))")
+    exec("SHORT_ArrayLengths = z3.Array('SHORT_ArrayLengths', z3.BitVecSort(32), z3.BitVecSort(32))")
+    exec("INT_Arrays = z3.Array('INT_Arrays', z3.BitVecSort(32), z3.ArraySort(z3.BitVecSort(32), z3.BitVecSort(32)))")
+    exec("INT_ArrayLengths = z3.Array('INT_ArrayLengths', z3.BitVecSort(32), z3.BitVecSort(32))")
+    exec("LONG_Arrays = z3.Array('LONG_Arrays', z3.BitVecSort(32), z3.ArraySort(z3.BitVecSort(32), z3.BitVecSort(64)))")
+    exec("LONG_ArrayLengths = z3.Array('LONG_ArrayLengths', z3.BitVecSort(32), z3.BitVecSort(32))")
+    exec("FLOAT_Arrays = z3.Array('FLOAT_Arrays', z3.BitVecSort(32), z3.ArraySort(z3.BitVecSort(32), Float))")
+    exec("FLOAT_ArrayLengths = z3.Array('FLOAT_ArrayLengths', z3.BitVecSort(32), z3.BitVecSort(32))")
+    exec("DOUBLE_Arrays = z3.Array('DOUBLE_Arrays', z3.BitVecSort(32), z3.ArraySort(z3.BitVecSort(32), Double))")
+    exec("DOUBLE_ArrayLengths = z3.Array('DOUBLE_ArrayLengths', z3.BitVecSort(32), z3.BitVecSort(32))")
 
     sfiInputVars = {}
     for sfiV in itertools.chain(sfiPathData.inputVariables, sfiPathData.variables):
@@ -232,8 +244,7 @@ inputs = []
 while True:
     if inputs is not None:
         inputRepr = 'random inputs' if len(inputs) == 0 else 'inputs {}'.format(repr(inputs))
-        if verbose:
-            print('Trying {} (path {})'.format(inputRepr, list(map(lambda e: e.isTrue, stack))))
+        print('Trying {} (path {})'.format(inputRepr, list(map(lambda e: e.isTrue, stack))))
         foundError = runInstrumentedProgram(inputs, runCommand)
         if foundError:
             print('Found error! Inputs: {}'.format(repr(inputs)))
