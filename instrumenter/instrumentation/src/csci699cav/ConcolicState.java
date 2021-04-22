@@ -6,17 +6,19 @@ public class ConcolicState {
     protected static int inputCounter = 0;
     protected static Random rng = new Random();
 
-    protected static List<Variable> inputVariables = new ArrayList<>();
-    protected static List<Variable> variables = new ArrayList<>();
-    protected static List<Assignment> inputAssignments = new ArrayList<>();
-    protected static List<Assignment> assignments = new ArrayList<>();
-    protected static List<PathConstraint> pathConstraints = new ArrayList<>();
+    protected static List<Variable> inputVariables = new LinkedList<>();
+    protected static List<Variable> variables = new LinkedList<>();
+    protected static List<Assignment> inputAssignments = new LinkedList<>();
+    protected static List<Assignment> fieldInitAssignments = new LinkedList<>();
+    protected static List<Assignment> assignments = new LinkedList<>();
+    protected static List<PathConstraint> pathConstraints = new LinkedList<>();
 
     private static Set<Integer> declaredVariables = new HashSet<Integer>();
 
     private static Stack<String> frameStack = new Stack<String>();
     private static String lastFrame = null;
     private static int frameCounter = 0;
+    private static int objectCounter = 0;
     private static int arrayCounter = 0;
 
     private static String defaultValue(VariableType type) {
@@ -133,7 +135,23 @@ public class ConcolicState {
         return "fpFPToFP(RNE(), " + op + ", " + s + ")";
     }
 
-    public static String newarray() {
+    public static String newObject() {
+        ++objectCounter;
+        return "BitVecVal(" + Integer.toString(objectCounter) + ", 32)";
+    }
+
+    public static String instanceFieldAccess(String varName, String localOrConstantId, boolean idConstant) {
+        String id = idConstant ? localOrConstantId : local(localOrConstantId);
+        return "Select(" + varName + ", " + id + ")";
+    }
+
+    public static void addInstanceFieldStore(String varName, String localOrConstantId, boolean idConstant, String localOrConstantValue, boolean valueConstant) {
+        String id = idConstant ? localOrConstantId : local(localOrConstantId);
+        String value = valueConstant ? localOrConstantValue : local(localOrConstantValue);
+        addAssignment(varName, "Store(" + varName + ", " + id + ", " + value + ")");
+    }
+
+    public static String newArray() {
         ++arrayCounter;
         return "BitVecVal(" + Integer.toString(arrayCounter) + ", 32)";
     }
@@ -188,9 +206,16 @@ public class ConcolicState {
     }
 
     // key is used to quickly check if the variable has already been declared
-    public static void addVariableIfNotPresent(VariableType type, String id, int key) {
+    public static void addStaticFieldVariableIfNotPresent(VariableType type, String id, int key) {
         if (declaredVariables.add(key)) {
             variables.add(new Variable(type, id));
+            fieldInitAssignments.add(new Assignment(id, defaultValue(type)));
+        }
+    }
+    public static void addInstanceFieldVariableIfNotPresent(VariableType type, String id, int key) {
+        if (declaredVariables.add(key)) {
+            variables.add(new Variable(type, id, true));
+            fieldInitAssignments.add(new Assignment(id, "K(BitVecSort(32), " + defaultValue(type) + ")"));
         }
     }
 

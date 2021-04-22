@@ -69,7 +69,13 @@ class FPInput:
         self.val = val
 
     def __repr__(self):
-        return repr(eval(repr(self.val)))
+        s = repr(self.val)
+        if s == '+oo':
+            return 'inf'
+        elif s == '-oo':
+            return '-inf'
+        else:
+            return repr(eval(s))
 
     def inputStr(self):
         val = self.val
@@ -79,7 +85,7 @@ class FPInput:
 def readPathData():
     with open(PATH_DATA_OUTPUT, 'r') as f:
         s = f.read()
-        lines = s.replace('$', 'D').split('\n')
+        lines = s.replace('$', '_').replace('<init>', '_init_').replace('<clinit>', '_clinit_').split('\n')
         i = 0
         inputVariables = []
         while i < len(lines):
@@ -126,7 +132,25 @@ def readPathData():
 def makeZ3Var(v):
     t = v.varType
     name = v.varName
-    if t == 'BYTE':
+    if t.startswith('INSTANCE:'):
+        s = t[9:]
+        if s == 'BYTE':
+            return z3.Array(name, BitVecSort(32), z3.BitVecSort(8))
+        elif s == 'SHORT':
+            return z3.Array(name, BitVecSort(32), z3.BitVecSort(16))
+        elif s == 'INT':
+            return z3.Array(name, BitVecSort(32), z3.BitVecSort(32))
+        elif s == 'LONG':
+            return z3.Array(name, BitVecSort(32), z3.BitVecSort(64))
+        elif s == 'FLOAT':
+            return z3.Array(name, BitVecSort(32), Float)
+        elif s == 'DOUBLE':
+            return z3.Array(name, BitVecSort(32), Double)
+        elif s == 'CHAR':
+            return z3.Array(name, BitVecSort(32), z3.BitVecSort(16))
+        else:
+            raise Exception("unsupported type {}".format(t))
+    elif t == 'BYTE':
         return z3.BitVec(name, 8)
     elif t == 'SHORT':
         return z3.BitVec(name, 16)
