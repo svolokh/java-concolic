@@ -58,6 +58,6 @@ public class Utils {
     // black-list of methods to avoid instrumenting
     public static boolean doNotInstrument(SootMethod m) {
         SootClass sc = m.getDeclaringClass();
-        return sc.getName().equals("csci699cav.Concolic") || sc.getName().equals("java.lang.System");
+        return sc.getName().equals("csci699cav.Concolic") || sc.getName().equals("java.lang.System") || sc.getName().equals("java.lang.Object");
     }
 }

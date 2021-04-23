@@ -784,33 +784,57 @@ public class PathConditionTransformer extends SceneTransformer {
             }
         }
 
+        Set<SootClass> newAppClasses = new HashSet<>();
+
         libraryMethodsToInstrument = new HashSet<>();
+        Set<SootClass> classesLoaded = new HashSet<>();
         Set<SootMethod> workList = new HashSet<>(entryPoints);
         while (!workList.isEmpty()) {
-            Iterator<SootMethod> it = workList.iterator();
-            SootMethod m = it.next();
-            it.remove();
+            while (!workList.isEmpty()) {
+                Iterator<SootMethod> it = workList.iterator();
+                SootMethod m = it.next();
+                it.remove();
 
-            if (m.getDeclaringClass().isLibraryClass()) {
-                libraryMethodsToInstrument.add(m);
-            } else {
-                methodsToInstrument.add(m);
-            }
+                classesLoaded.add(m.getDeclaringClass());
 
-            Body b = m.retrieveActiveBody();
-            for (Unit u : b.getUnits()) {
-                for (ValueBox vb : u.getUseBoxes()) {
-                    Value v = vb.getValue();
-                    if (v instanceof InvokeExpr) {
-                        InvokeExpr expr = (InvokeExpr)v;
-                        SootMethod md = expr.getMethod();
-                        if (!Utils.doNotInstrument(md) && !methodsToInstrument.contains(md) && !libraryMethodsToInstrument.contains(md)) {
-                            workList.add(md);
+                if (m.getDeclaringClass().isLibraryClass()) {
+                    libraryMethodsToInstrument.add(m);
+                } else {
+                    methodsToInstrument.add(m);
+                    newAppClasses.add(m.getDeclaringClass());
+
+                    if (m.getSource() != null) {
+                        Body b = m.retrieveActiveBody();
+                        for (Unit u : b.getUnits()) {
+                            for (ValueBox vb : u.getUseAndDefBoxes()) {
+                                Value v = vb.getValue();
+                                if (v instanceof InvokeExpr) {
+                                    InvokeExpr expr = (InvokeExpr)v;
+                                    SootMethod md = expr.getMethod();
+                                    if (!Utils.doNotInstrument(md) && !methodsToInstrument.contains(md) && !libraryMethodsToInstrument.contains(md)) {
+                                        workList.add(md);
+                                    }
+                                } else if (v instanceof FieldRef) {
+                                    FieldRef fr = (FieldRef)v;
+                                    classesLoaded.add(fr.getField().getDeclaringClass());
+                                }
+                            }
                         }
                     }
                 }
             }
+            for (SootClass c : classesLoaded) {
+                // add <clinit> for each loaded class
+                if (c.declaresMethodByName("<clinit>"))
+                {
+                    SootMethod m = c.getMethodByName("<clinit>");
+                    if (!Utils.doNotInstrument(m) && !methodsToInstrument.contains(m) && !libraryMethodsToInstrument.contains(m)) {
+                        workList.add(m);
+                    }
+                }
+            }
         }
+        System.out.println(methodsToInstrument);
 
         if (libraryDepsOutput != null) {
             Map<String, Map<SootClass, Set<SootMethod>>> deps = new HashMap<>();
@@ -840,26 +864,54 @@ public class PathConditionTransformer extends SceneTransformer {
             throw new RuntimeException("No output for library method dependencies was specified but there are dependencies on library methods");
         }
 
-        // now set the application classes to only be the ones we are adding instrumentation code to, so Soot only writes class files for the ones we modified
-        Set<SootClass> newAppClasses = new HashSet<>();
-        for (SootMethod m : methodsToInstrument) {
-            newAppClasses.add(m.getDeclaringClass());
+        for (SootMethod m : methodsToInstrument)
+        {
+            Body b = m.retrieveActiveBody();
+            processMethod(b);
         }
+
+        // now set the application classes to only be the ones we are adding instrumentation code to, so Soot only writes class files for the ones we modified
         for (SootClass c : Scene.v().getClasses()) {
-            if (newAppClasses.contains(c)) {
+            SootClass outerMost = c;
+            while (outerMost.hasOuterClass()) {
+                outerMost = outerMost.getOuterClass();
+            }
+            if (newAppClasses.contains(outerMost)) {
+                newAppClasses.add(c);
                 c.setApplicationClass();
             } else {
                 c.setLibraryClass();
             }
         }
 
+        if (entryPointsFile != null) {
+            // we were instrumenting a library; rename all the instrumented classes to have the instrumented prefix and remove unneeded methods
+            for (SootClass c : newAppClasses) {
+                c.rename("concolic." + c.getName());
+
+                List<SootMethod> methods = new ArrayList<>(c.getMethods());
+                for (SootMethod m : methods) {
+                    if (!methodsToInstrument.contains(m)) {
+                        c.removeMethod(m);
+                    }
+                }
+            }
+        }
+        {
+            // rename all library dependencies to point to instrumented version
+            Set<SootClass> libraryDepClasses = new HashSet<>();
+            for (SootMethod m : libraryMethodsToInstrument) {
+                libraryDepClasses.add(m.getDeclaringClass());
+            }
+            for (SootClass c : libraryDepClasses) {
+                c.rename("concolic." + c.getName());
+            }
+        }
+
+        // DEBUG
         for (SootMethod m : methodsToInstrument)
         {
-            if (m != null && m.isConcrete() && m.getSource() != null) {
-                Body b = m.retrieveActiveBody();
-                processMethod(b);
-                System.out.println(b); // DEBUG
-            }
+            System.out.println(m.retrieveActiveBody());
         }
 
         if (!isComplete) {

@@ -8,6 +8,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
+// converts all switch statements to a series of if statements
 public class SwitchToIfStmt {
     public static void processMethod(Body b) {
         UnitPatchingChain units = b.getUnits();

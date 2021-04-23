@@ -1,0 +1,3 @@
+<java.lang.Boolean: void <clinit>()>
+<java.lang.Boolean: boolean booleanValue()>
+<java.lang.Boolean: java.lang.Boolean valueOf(boolean)>
