@@ -8,8 +8,8 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
-public class SwitchToIfStmtTransformer extends SceneTransformer {
-    private void processMethod(Body b) {
+public class SwitchToIfStmt {
+    public static void processMethod(Body b) {
         UnitPatchingChain units = b.getUnits();
         Iterator<Unit> it = units.snapshotIterator();
         while (it.hasNext())
@@ -43,18 +43,6 @@ public class SwitchToIfStmtTransformer extends SceneTransformer {
                 insertUnits.add(Jimple.v().newGotoStmt(stmt.getDefaultTarget()));
                 units.insertAfter(insertUnits, u);
                 units.remove(u);
-            }
-        }
-    }
-
-    @Override
-    protected void internalTransform(String phaseName, Map<String, String> map) {
-        for (SootClass sc : Scene.v().getApplicationClasses())
-        {
-            for (SootMethod m : sc.getMethods())
-            {
-                Body b = m.retrieveActiveBody();
-                processMethod(b);
             }
         }
     }

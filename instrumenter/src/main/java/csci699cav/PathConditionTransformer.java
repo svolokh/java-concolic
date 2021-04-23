@@ -2,9 +2,8 @@ package csci699cav;
 
 import soot.*;
 import soot.jimple.*;
-import soot.tagkit.AnnotationTag;
-import soot.tagkit.VisibilityAnnotationTag;
 
+import java.io.*;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -55,6 +54,7 @@ public class PathConditionTransformer extends SceneTransformer {
     private SootField varTypeChar;
 
     private Set<SootMethod> methodsToInstrument;
+    private Set<SootMethod> libraryMethodsToInstrument;
     private int branchIdCounter = 0;
 
     private SootField sootTypeToSymbolicType(Type t) {
@@ -213,33 +213,33 @@ public class PathConditionTransformer extends SceneTransformer {
                     if (toSize < fromSize) {
                         return Collections.singletonList(
                                 Jimple.v().newAssignStmt(outVar,
-                                Jimple.v().newStaticInvokeExpr(bvToBvNarrow.makeRef(), StringConstant.v(op),
-                                        IntConstant.v(opConstant ? 1 : 0), IntConstant.v(toSize))));
+                                        Jimple.v().newStaticInvokeExpr(bvToBvNarrow.makeRef(), StringConstant.v(op),
+                                                IntConstant.v(opConstant ? 1 : 0), IntConstant.v(toSize))));
                     } else if (toSize > fromSize) {
                         return Collections.singletonList(
                                 Jimple.v().newAssignStmt(outVar,
-                                Jimple.v().newStaticInvokeExpr(bvToBvWiden.makeRef(), StringConstant.v(op),
-                                        IntConstant.v(opConstant ? 1 : 0), IntConstant.v(toSize - fromSize))));
+                                        Jimple.v().newStaticInvokeExpr(bvToBvWiden.makeRef(), StringConstant.v(op),
+                                                IntConstant.v(opConstant ? 1 : 0), IntConstant.v(toSize - fromSize))));
                     } else {
                         return Collections.singletonList(
                                 Jimple.v().newAssignStmt(outVar,
-                                Jimple.v().newStaticInvokeExpr(identity.makeRef(), StringConstant.v(op), IntConstant.v(opConstant ? 1 : 0))));
+                                        Jimple.v().newStaticInvokeExpr(identity.makeRef(), StringConstant.v(op), IntConstant.v(opConstant ? 1 : 0))));
                     }
                 } else if (fromBv) { // BV => FP
                     boolean isDouble = toPrim instanceof DoubleType;
                     return Collections.singletonList(
                             Jimple.v().newAssignStmt(outVar, Jimple.v().newStaticInvokeExpr(bvToFp.makeRef(), StringConstant.v(op), IntConstant.v(opConstant ? 1 : 0),
-                            IntConstant.v(isDouble ? 1 : 0))));
+                                    IntConstant.v(isDouble ? 1 : 0))));
                 } else if (toBv) { // FP => BV
                     int bitVecSize = Utils.bitVectorSize(toPrim);
                     return Collections.singletonList(
                             Jimple.v().newAssignStmt(outVar, Jimple.v().newStaticInvokeExpr(fpToBv.makeRef(), StringConstant.v(op), IntConstant.v(opConstant ? 1 : 0),
-                            IntConstant.v(bitVecSize))));
+                                    IntConstant.v(bitVecSize))));
                 } else { // FP => FP
                     boolean toDouble = toPrim instanceof DoubleType;
                     return Collections.singletonList(
                             Jimple.v().newAssignStmt(outVar, Jimple.v().newStaticInvokeExpr(fpToFp.makeRef(), StringConstant.v(op), IntConstant.v(opConstant ? 1 : 0),
-                            IntConstant.v(toDouble ? 1 : 0))));
+                                    IntConstant.v(toDouble ? 1 : 0))));
                 }
             } else {
                 throw new IllegalArgumentException("unsupported cast " + expr);
@@ -262,7 +262,7 @@ public class PathConditionTransformer extends SceneTransformer {
             {
                 return Collections.singletonList(
                         Jimple.v().newAssignStmt(outVar, Jimple.v().newStaticInvokeExpr(unaryOp.makeRef(),
-                        StringConstant.v("-"), StringConstant.v(op), IntConstant.v(opConstant ? 1 : 0))));
+                                StringConstant.v("-"), StringConstant.v(op), IntConstant.v(opConstant ? 1 : 0))));
             } else if (e instanceof LengthExpr)
             {
                 LengthExpr le = (LengthExpr)e;
@@ -305,20 +305,20 @@ public class PathConditionTransformer extends SceneTransformer {
             if (e instanceof CmpExpr) {
                 return Collections.singletonList(
                         Jimple.v().newAssignStmt(outVar, Jimple.v().newStaticInvokeExpr(cmp.makeRef(),
-                        StringConstant.v(op1), IntConstant.v(op1Constant ? 1 : 0), StringConstant.v(op2), IntConstant.v(op2Constant ? 1 : 0))));
+                                StringConstant.v(op1), IntConstant.v(op1Constant ? 1 : 0), StringConstant.v(op2), IntConstant.v(op2Constant ? 1 : 0))));
             } else if (e instanceof CmplExpr) {
                 return Collections.singletonList(
                         Jimple.v().newAssignStmt(outVar, Jimple.v().newStaticInvokeExpr(cmpl.makeRef(),
-                        StringConstant.v(op1), IntConstant.v(op1Constant ? 1 : 0), StringConstant.v(op2), IntConstant.v(op2Constant ? 1 : 0))));
+                                StringConstant.v(op1), IntConstant.v(op1Constant ? 1 : 0), StringConstant.v(op2), IntConstant.v(op2Constant ? 1 : 0))));
             } else if (e instanceof CmpgExpr) {
                 return Collections.singletonList(
                         Jimple.v().newAssignStmt(outVar, Jimple.v().newStaticInvokeExpr(cmpg.makeRef(),
-                        StringConstant.v(op1), IntConstant.v(op1Constant ? 1 : 0), StringConstant.v(op2), IntConstant.v(op2Constant ? 1 : 0))));
+                                StringConstant.v(op1), IntConstant.v(op1Constant ? 1 : 0), StringConstant.v(op2), IntConstant.v(op2Constant ? 1 : 0))));
             } else {
                 return Collections.singletonList(
                         Jimple.v().newAssignStmt(outVar, Jimple.v().newStaticInvokeExpr(binaryOp.makeRef(),
-                        StringConstant.v(e.getSymbol()),
-                        StringConstant.v(op1), IntConstant.v(op1Constant ? 1 : 0), StringConstant.v(op2), IntConstant.v(op2Constant ? 1 : 0))));
+                                StringConstant.v(e.getSymbol()),
+                                StringConstant.v(op1), IntConstant.v(op1Constant ? 1 : 0), StringConstant.v(op2), IntConstant.v(op2Constant ? 1 : 0))));
             }
         } else {
             throw new IllegalArgumentException("unsupported value: " + v + " (" + v.getClass().getName() + ")");
@@ -326,7 +326,7 @@ public class PathConditionTransformer extends SceneTransformer {
     }
 
     private boolean methodHasSymbolicExecution(SootMethod m) {
-        return methodsToInstrument.contains(m);
+        return methodsToInstrument.contains(m) || libraryMethodsToInstrument.contains(m);
     }
 
     // inputs: invoke expression, and a local string where a temporary value can be stored
@@ -364,6 +364,9 @@ public class PathConditionTransformer extends SceneTransformer {
             // skip Java main method
             return;
         }
+
+        SwitchToIfStmt.processMethod(body);
+        SameTypesBinOp.processMethod(body);
 
         List<Local> origLocals = new ArrayList<>(body.getLocals());
 
@@ -448,7 +451,7 @@ public class PathConditionTransformer extends SceneTransformer {
                                 assert v instanceof InstanceFieldRef;
                                 String varName = varNameForInstanceField(sf);
                                 units.insertBefore(Jimple.v().newInvokeStmt(Jimple.v().newStaticInvokeExpr(addInstanceFieldVariableIfNotPresent.makeRef(), varTypeTmp,
-                                                        StringConstant.v(varName), IntConstant.v(key))), first);
+                                        StringConstant.v(varName), IntConstant.v(key))), first);
                             }
                         }
                     }
@@ -457,19 +460,7 @@ public class PathConditionTransformer extends SceneTransformer {
         }
 
         // if entry-point, add entry-point header
-        boolean isEntryPoint = false;
-        VisibilityAnnotationTag vat = (VisibilityAnnotationTag) body.getMethod().getTag("VisibilityAnnotationTag");
-        if (vat != null) {
-            for (AnnotationTag tag : vat.getAnnotations()) {
-                if (tag.getType().equals("Lcsci699cav/Concolic$Entrypoint;"))
-                {
-                    isEntryPoint = true;
-                    break;
-                }
-            }
-        }
-
-        if (isEntryPoint)
+        if (Utils.hasEntryPointAnnotation(body.getMethod()))
         {
             // add call to ConcolicState.init()
             {
@@ -624,7 +615,7 @@ public class PathConditionTransformer extends SceneTransformer {
                             Jimple.v().newInvokeStmt(Jimple.v().newStaticInvokeExpr(addInstanceFieldStore.makeRef(), StringConstant.v(varName),
                                     StringConstant.v(id), IntConstant.v(idConstant ? 1 : 0),
                                     StringConstant.v(value), IntConstant.v(valueConstant ? 1 : 0)))
-                    , s);
+                            , s);
                 } else if (leftOp instanceof ArrayRef) {
                     ArrayRef ar = (ArrayRef)leftOp;
                     Type baseType = ((ArrayType)ar.getBase().getType()).baseType;
@@ -709,8 +700,8 @@ public class PathConditionTransformer extends SceneTransformer {
 
     @Override
     protected void internalTransform(String phaseName, Map<String, String> options) {
-        new SwitchToIfStmtTransformer().internalTransform(phaseName, options);
-        new SameTypesBinOpTransformer().internalTransform(phaseName, options);
+        String entryPointsFile = System.getenv("ENTRYPOINTS");
+        String libraryDepsOutput = System.getenv("LIBRARY_DEPS_OUT");
 
         SootClass sc = Scene.v().loadClassAndSupport("csci699cav.ConcolicState");
         SootClass variableTypeClass = Scene.v().loadClassAndSupport("csci699cav.VariableType");
@@ -770,9 +761,96 @@ public class PathConditionTransformer extends SceneTransformer {
         varTypeChar = variableTypeClass.getFieldByName("CHAR");
 
         methodsToInstrument = new HashSet<>();
-        for(SootClass c : Scene.v().getApplicationClasses())
-        {
-            methodsToInstrument.addAll(c.getMethods());
+        List<SootMethod> entryPoints = new ArrayList<>();
+        if (entryPointsFile != null) {
+            try (BufferedReader br = new BufferedReader(new FileReader(entryPointsFile)))
+            {
+                while (br.ready()) {
+                    String sig = br.readLine();
+                    entryPoints.add(Scene.v().getMethod(sig));
+                }
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        } else {
+            for (SootClass c : Scene.v().getApplicationClasses())
+            {
+                List<SootMethod> methods = c.getMethods();
+                for (SootMethod m : methods) {
+                    if (Utils.hasEntryPointAnnotation(m)) {
+                        entryPoints.add(m);
+                    }
+                }
+            }
+        }
+
+        libraryMethodsToInstrument = new HashSet<>();
+        Set<SootMethod> workList = new HashSet<>(entryPoints);
+        while (!workList.isEmpty()) {
+            Iterator<SootMethod> it = workList.iterator();
+            SootMethod m = it.next();
+            it.remove();
+
+            if (m.getDeclaringClass().isLibraryClass()) {
+                libraryMethodsToInstrument.add(m);
+            } else {
+                methodsToInstrument.add(m);
+            }
+
+            Body b = m.retrieveActiveBody();
+            for (Unit u : b.getUnits()) {
+                for (ValueBox vb : u.getUseBoxes()) {
+                    Value v = vb.getValue();
+                    if (v instanceof InvokeExpr) {
+                        InvokeExpr expr = (InvokeExpr)v;
+                        SootMethod md = expr.getMethod();
+                        if (!Utils.doNotInstrument(md) && !methodsToInstrument.contains(md) && !libraryMethodsToInstrument.contains(md)) {
+                            workList.add(md);
+                        }
+                    }
+                }
+            }
+        }
+
+        if (libraryDepsOutput != null) {
+            Map<String, Map<SootClass, Set<SootMethod>>> deps = new HashMap<>();
+            for (SootMethod m : libraryMethodsToInstrument) {
+                SootClass c = m.getDeclaringClass();
+                String filePath = Utils.getFilePathForClass(c);
+                Map<SootClass, Set<SootMethod>> classToMethods = deps.computeIfAbsent(filePath, k -> new HashMap<>());
+                Set<SootMethod> methods = classToMethods.computeIfAbsent(c, k -> new HashSet<>());
+                methods.add(m);
+            }
+            try (BufferedWriter bw = new BufferedWriter(new FileWriter(libraryDepsOutput)))
+            {
+                for (Map.Entry<String, Map<SootClass, Set<SootMethod>>> dep : deps.entrySet()) {
+                    bw.write("@ " + dep.getKey());
+                    bw.write("\n");
+                    for (Map.Entry<SootClass, Set<SootMethod>> e : dep.getValue().entrySet()) {
+                        for (SootMethod m : e.getValue()) {
+                            bw.write(m.getSignature());
+                            bw.write("\n");
+                        }
+                    }
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        } else if (!libraryMethodsToInstrument.isEmpty()) {
+            throw new RuntimeException("No output for library method dependencies was specified but there are dependencies on library methods");
+        }
+
+        // now set the application classes to only be the ones we are adding instrumentation code to, so Soot only writes class files for the ones we modified
+        Set<SootClass> newAppClasses = new HashSet<>();
+        for (SootMethod m : methodsToInstrument) {
+            newAppClasses.add(m.getDeclaringClass());
+        }
+        for (SootClass c : Scene.v().getClasses()) {
+            if (newAppClasses.contains(c)) {
+                c.setApplicationClass();
+            } else {
+                c.setLibraryClass();
+            }
         }
 
         for (SootMethod m : methodsToInstrument)
@@ -780,7 +858,6 @@ public class PathConditionTransformer extends SceneTransformer {
             if (m != null && m.isConcrete() && m.getSource() != null) {
                 Body b = m.retrieveActiveBody();
                 processMethod(b);
-
                 System.out.println(b); // DEBUG
             }
         }

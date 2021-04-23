@@ -3,23 +3,47 @@ package csci699cav;
 import java.util.*;
 
 public class ConcolicState {
-    protected static int inputCounter = 0;
-    protected static Random rng = new Random();
+    protected static int inputCounter;
+    protected static Random rng;
 
-    protected static List<Variable> inputVariables = new LinkedList<>();
-    protected static List<Variable> variables = new LinkedList<>();
-    protected static List<Assignment> inputAssignments = new LinkedList<>();
-    protected static List<Assignment> fieldInitAssignments = new LinkedList<>();
-    protected static List<Assignment> assignments = new LinkedList<>();
-    protected static List<PathConstraint> pathConstraints = new LinkedList<>();
+    protected static List<Variable> inputVariables;
+    protected static List<Variable> variables;
+    protected static List<Assignment> inputAssignments;
+    protected static List<Assignment> fieldInitAssignments;
+    protected static List<Assignment> assignments;
+    protected static List<PathConstraint> pathConstraints;
 
-    private static Set<Integer> declaredVariables = new HashSet<Integer>();
+    private static Set<Integer> declaredVariables;
 
-    private static Stack<String> frameStack = new Stack<String>();
-    private static String lastFrame = null;
-    private static int frameCounter = 0;
-    private static int objectCounter = 0;
-    private static int arrayCounter = 0;
+    private static Stack<String> frameStack;
+    private static String lastFrame;
+    private static int frameCounter;
+    private static int objectCounter;
+    private static int arrayCounter;
+
+    static {
+        reset();
+    }
+
+    private static void reset() {
+        inputCounter = 0;
+        rng = new Random();
+
+        inputVariables = new LinkedList<>();
+        variables = new LinkedList<>();
+        inputAssignments = new LinkedList<>();
+        fieldInitAssignments = new LinkedList<>();
+        assignments = new LinkedList<>();
+        pathConstraints = new LinkedList<>();
+
+        declaredVariables = new HashSet<Integer>();
+
+        frameStack = new Stack<String>();
+        lastFrame = null;
+        frameCounter = 0;
+        objectCounter = 0;
+        arrayCounter = 0;
+    }
 
     private static String defaultValue(VariableType type) {
         switch(type) {
@@ -43,6 +67,7 @@ public class ConcolicState {
     }
 
     public static void init() {
+        reset();
         Runtime.getRuntime().addShutdownHook(new Thread(new ShutdownHook()));
     }
 

@@ -11,8 +11,8 @@ import java.util.Iterator;
 import java.util.Map;
 
 // transforms all binary operations on primitives so that the types of both operands in the expression are the same
-public class SameTypesBinOpTransformer extends SceneTransformer {
-    private void processMethod(Body b) {
+public class SameTypesBinOp {
+    public static void processMethod(Body b) {
         Map<PrimType, Local> tempLocals = new HashMap<>();
         UnitPatchingChain units = b.getUnits();
         Iterator<Unit> it = units.snapshotIterator();
@@ -54,18 +54,6 @@ public class SameTypesBinOpTransformer extends SceneTransformer {
                         expr.setOp2(l);
                     }
                 }
-            }
-        }
-    }
-
-    @Override
-    protected void internalTransform(String phaseName, Map<String, String> options) {
-        for (SootClass sc : Scene.v().getApplicationClasses())
-        {
-            for (SootMethod m : sc.getMethods())
-            {
-                Body b = m.retrieveActiveBody();
-                processMethod(b);
             }
         }
     }

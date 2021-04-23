@@ -8,6 +8,7 @@ public class Main {
     public static void main(String[] args) {
         Options.v().set_whole_program(true);
         Options.v().set_drop_bodies_after_load(false);
+        Options.v().set_include_all(true);
         Scene.v().addBasicClass("csci699cav.Assignment", SootClass.SIGNATURES);
         Scene.v().addBasicClass("csci699cav.ConcolicState", SootClass.SIGNATURES);
         Scene.v().addBasicClass("csci699cav.PathConstraint", SootClass.SIGNATURES);
