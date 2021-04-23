@@ -1,14 +1,11 @@
 import csci699cav.Concolic;
 
-import java.util.ArrayList;
-
 public class MyClass {
     @Concolic.Entrypoint
     public static void run() {
         int i = Concolic.inputInt();
-        int j = Concolic.inputInt();
-        if (i + j > 2) {
-            throw new RuntimeException("error!");
+        if (Integer.bitCount(i) == 12) {
+            System.exit(1);
         }
     }
 

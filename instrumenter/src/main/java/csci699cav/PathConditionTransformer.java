@@ -1,5 +1,6 @@
 package csci699cav;
 
+import fj.P;
 import soot.*;
 import soot.jimple.*;
 
@@ -241,6 +242,9 @@ public class PathConditionTransformer extends SceneTransformer {
                             Jimple.v().newAssignStmt(outVar, Jimple.v().newStaticInvokeExpr(fpToFp.makeRef(), StringConstant.v(op), IntConstant.v(opConstant ? 1 : 0),
                                     IntConstant.v(toDouble ? 1 : 0))));
                 }
+            } else if (from instanceof RefType && to instanceof RefType) {
+                // nothing needs to be done for references
+                return Collections.emptyList();
             } else {
                 throw new IllegalArgumentException("unsupported cast " + expr);
             }
@@ -315,9 +319,15 @@ public class PathConditionTransformer extends SceneTransformer {
                         Jimple.v().newAssignStmt(outVar, Jimple.v().newStaticInvokeExpr(cmpg.makeRef(),
                                 StringConstant.v(op1), IntConstant.v(op1Constant ? 1 : 0), StringConstant.v(op2), IntConstant.v(op2Constant ? 1 : 0))));
             } else {
+                String symbol = e.getSymbol();
+                if (symbol.equals(" >>> ")) {
+                    symbol = " >> ";
+                } else if (symbol.equals(" <<< ")) {
+                    symbol = " << ";
+                }
                 return Collections.singletonList(
                         Jimple.v().newAssignStmt(outVar, Jimple.v().newStaticInvokeExpr(binaryOp.makeRef(),
-                                StringConstant.v(e.getSymbol()),
+                                StringConstant.v(symbol),
                                 StringConstant.v(op1), IntConstant.v(op1Constant ? 1 : 0), StringConstant.v(op2), IntConstant.v(op2Constant ? 1 : 0))));
             }
         } else {
@@ -326,7 +336,7 @@ public class PathConditionTransformer extends SceneTransformer {
     }
 
     private boolean methodHasSymbolicExecution(SootMethod m) {
-        return methodsToInstrument.contains(m) || libraryMethodsToInstrument.contains(m);
+        return (methodsToInstrument.contains(m) || libraryMethodsToInstrument.contains(m)) && m.getSource() != null;
     }
 
     // inputs: invoke expression, and a local string where a temporary value can be stored
@@ -351,6 +361,9 @@ public class PathConditionTransformer extends SceneTransformer {
                         opTmp)));
                 ++i;
             }
+        } else {
+            System.out.println("Warning: Encountered method call to " + expr.getMethod().getSignature() + " for which symbolic execution is unavailable, will use concrete return value");
+            isComplete = false;
         }
     }
 
@@ -367,6 +380,7 @@ public class PathConditionTransformer extends SceneTransformer {
 
         SwitchToIfStmt.processMethod(body);
         SameTypesBinOp.processMethod(body);
+        SameTypeReturnValue.processMethod(body);
 
         List<Local> origLocals = new ArrayList<>(body.getLocals());
 
@@ -549,8 +563,6 @@ public class PathConditionTransformer extends SceneTransformer {
                                 toInsert.add(Jimple.v().newInvokeStmt(
                                         Jimple.v().newStaticInvokeExpr(addConcreteAssignment.get(RefType.v("java.lang.Object")).makeRef(), opTmp1, leftOp)));
                             }
-                            System.out.println("Warning: Encountered method call to " + expr.getMethod().getSignature() + " for which symbolic execution is unavailable, will use concrete return value");
-                            isComplete = false;
                         } else {
                             toInsert.add(Jimple.v().newInvokeStmt(Jimple.v().newStaticInvokeExpr(addAssignmentFromReturnValue.makeRef(), opTmp1)));
                         }
@@ -797,6 +809,11 @@ public class PathConditionTransformer extends SceneTransformer {
 
                 classesLoaded.add(m.getDeclaringClass());
 
+                if (m.getSource() == null) {
+                    // if method source is unavailable we cannot instrument this method (it will be evaluated concretely)
+                    continue;
+                }
+
                 if (m.getDeclaringClass().isLibraryClass()) {
                     libraryMethodsToInstrument.add(m);
                 } else {
@@ -834,7 +851,6 @@ public class PathConditionTransformer extends SceneTransformer {
                 }
             }
         }
-        System.out.println(methodsToInstrument);
 
         if (libraryDepsOutput != null) {
             Map<String, Map<SootClass, Set<SootMethod>>> deps = new HashMap<>();
@@ -867,7 +883,13 @@ public class PathConditionTransformer extends SceneTransformer {
         for (SootMethod m : methodsToInstrument)
         {
             Body b = m.retrieveActiveBody();
-            processMethod(b);
+            try
+            {
+                processMethod(b);
+            } catch (Exception e) {
+                System.err.println(b);
+                throw new RuntimeException("failed to instrument method " + m.getSignature(), e);
+            }
         }
 
         // now set the application classes to only be the ones we are adding instrumentation code to, so Soot only writes class files for the ones we modified
@@ -885,16 +907,17 @@ public class PathConditionTransformer extends SceneTransformer {
         }
 
         if (entryPointsFile != null) {
-            // we were instrumenting a library; rename all the instrumented classes to have the instrumented prefix and remove unneeded methods
+            // post-processing to do when processing a library
+
+            // remove some methods that are known to be problematic when instrumented
+            {
+                SootClass c = Scene.v().getSootClass("java.lang.Integer");
+                c.removeMethod(c.getMethodByName("<clinit>"));
+            }
+
+            // rename all the instrumented classes to have the instrumented prefix
             for (SootClass c : newAppClasses) {
                 c.rename("concolic." + c.getName());
-
-                List<SootMethod> methods = new ArrayList<>(c.getMethods());
-                for (SootMethod m : methods) {
-                    if (!methodsToInstrument.contains(m)) {
-                        c.removeMethod(m);
-                    }
-                }
             }
         }
         {

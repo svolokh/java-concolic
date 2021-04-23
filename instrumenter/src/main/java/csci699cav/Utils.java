@@ -58,6 +58,26 @@ public class Utils {
     // black-list of methods to avoid instrumenting
     public static boolean doNotInstrument(SootMethod m) {
         SootClass sc = m.getDeclaringClass();
-        return sc.getName().equals("csci699cav.Concolic") || sc.getName().equals("java.lang.System") || sc.getName().equals("java.lang.Object");
+        String className = sc.getName();
+        String methodName = m.getName();
+
+        // ignore any methods that deal with strings (we currently do not support them)
+        if (m.getSource() != null) {
+            Body b = m.retrieveActiveBody();
+            for (Unit u : b.getUnits()) {
+                for (ValueBox vb : u.getUseAndDefBoxes()) {
+                    if (vb.getValue().getType().equals(RefType.v("java.lang.String"))) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return className.equals("csci699cav.Concolic")
+                || className.equals("java.lang.System")
+                || className.equals("java.lang.Object")
+                || className.equals("java.lang.Class")
+                || className.equals("java.lang.String")
+                || (className.startsWith("java.") && methodName.equals("<clinit>"));
     }
 }
