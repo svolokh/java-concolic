@@ -7,6 +7,24 @@ public class Concolic {
     @Retention(RetentionPolicy.CLASS)
     public static @interface Entrypoint {}
 
+    public static void assume(boolean condition) {
+        if (!condition) {
+            System.exit(0);
+        }
+    }
+
+    public static void assertTrue(boolean condition) {
+        if (!condition) {
+            System.exit(1);
+        }
+    }
+
+    public static void assertFalse(boolean condition) {
+        if (condition) {
+            System.exit(1);
+        }
+    }
+
     public static byte inputByte() {
         String givenVal = System.getenv("JAVA_CONCOLIC_INPUT" + ConcolicState.inputCounter);
         byte result;

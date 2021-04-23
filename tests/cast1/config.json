@@ -1,5 +1,5 @@
 {
-    "runCommand": "java -cp ../../instrumenter/instrumentation/bin:sootOutput MyClass",
-    "verbose": false,
-    "stopOnError": false
+    "runCommand": "/usr/lib/jvm/java-8-openjdk-amd64/bin/java -cp sootOutput MyClass",
+    "verbose": true,
+    "stopOnError": true
 }

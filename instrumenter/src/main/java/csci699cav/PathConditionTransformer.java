@@ -535,7 +535,12 @@ public class PathConditionTransformer extends SceneTransformer {
 
                 if (rightOp instanceof InvokeExpr) {
                     InvokeExpr expr = (InvokeExpr)rightOp;
-                    if (expr.getMethod().getDeclaringClass().getName().equals("csci699cav.Concolic"))
+                    SootMethod exprMethod = expr.getMethod();
+                    String methodName = exprMethod.getName();
+                    if (exprMethod.getDeclaringClass().getName().equals("csci699cav.Concolic")
+                            && !methodName.equals("assertTrue")
+                            && !methodName.equals("assertFalse")
+                            && !methodName.equals("assume"))
                     {
                         if (expr.getMethod().getName().startsWith("input"))
                         {
@@ -856,6 +861,10 @@ public class PathConditionTransformer extends SceneTransformer {
             Map<String, Map<SootClass, Set<SootMethod>>> deps = new HashMap<>();
             for (SootMethod m : libraryMethodsToInstrument) {
                 SootClass c = m.getDeclaringClass();
+                if (c.getName().equals("csci699cav.Concolic")) {
+                    // we handle this implicitly
+                    continue;
+                }
                 String filePath = Utils.getFilePathForClass(c);
                 Map<SootClass, Set<SootMethod>> classToMethods = deps.computeIfAbsent(filePath, k -> new HashMap<>());
                 Set<SootMethod> methods = classToMethods.computeIfAbsent(c, k -> new HashSet<>());
@@ -908,18 +917,21 @@ public class PathConditionTransformer extends SceneTransformer {
 
         if (entryPointsFile != null) {
             // post-processing to do when processing a library
-
             // remove some methods that are known to be problematic when instrumented
             {
                 SootClass c = Scene.v().getSootClass("java.lang.Integer");
                 c.removeMethod(c.getMethodByName("<clinit>"));
             }
-
             // rename all the instrumented classes to have the instrumented prefix
             for (SootClass c : newAppClasses) {
+                if (c.getName().startsWith("csci699cav.")) {
+                    // special case that we do not rename
+                    continue;
+                }
                 c.rename("concolic." + c.getName());
             }
         }
+
         {
             // rename all library dependencies to point to instrumented version
             Set<SootClass> libraryDepClasses = new HashSet<>();
@@ -927,6 +939,10 @@ public class PathConditionTransformer extends SceneTransformer {
                 libraryDepClasses.add(m.getDeclaringClass());
             }
             for (SootClass c : libraryDepClasses) {
+                if (c.getName().startsWith("csci699cav.")) {
+                    // special case that we do not rename
+                    continue;
+                }
                 c.rename("concolic." + c.getName());
             }
         }

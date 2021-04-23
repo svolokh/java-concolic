@@ -55,7 +55,7 @@ public class Utils {
         }
     }
 
-    // black-list of methods to avoid instrumenting
+    // decision for which methods to avoid instrumenting
     public static boolean doNotInstrument(SootMethod m) {
         SootClass sc = m.getDeclaringClass();
         String className = sc.getName();
@@ -73,7 +73,9 @@ public class Utils {
             }
         }
 
-        return className.equals("csci699cav.Concolic")
+        return (className.equals("csci699cav.Concolic") && !methodName.equals("assertTrue")
+                    && !methodName.equals("assertFalse")
+                    && !methodName.equals("assume"))
                 || className.equals("java.lang.System")
                 || className.equals("java.lang.Object")
                 || className.equals("java.lang.Class")
