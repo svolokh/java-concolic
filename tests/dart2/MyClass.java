@@ -22,9 +22,7 @@ public class MyClass {
                 ac = true;
             }
         }
-        if (isRoomHot && isDoorClosed && !ac) {
-            System.exit(1);
-        }
+        Concolic.assertFalse(isRoomHot && isDoorClosed && !ac);
     }
 
     @Concolic.Entrypoint

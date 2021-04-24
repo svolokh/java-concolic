@@ -9,9 +9,7 @@ public class MyClass {
         b = !b;
         b2 = !b2;
         b3 = !b3;
-        if (b && b2 && b3) {
-            System.exit(1);
-        }
+        Concolic.assertFalse(b && b2 && b3);
     }
 
     public static void main(String[] args) {

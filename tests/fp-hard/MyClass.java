@@ -8,9 +8,7 @@ public class MyClass {
             double d = Concolic.inputDouble();
             sum += (float)d;
         }
-        if (sum == 112.3) {
-            System.exit(1);
-        }
+        Concolic.assertFalse(sum == 112.3);
     }
 
     public static void main(String[] args) {

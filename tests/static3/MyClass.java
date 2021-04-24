@@ -9,9 +9,7 @@ public class MyClass {
         for (int i = 0; i != inputNums.length; ++i) {
             inputNums[i] = Concolic.inputInt();
         }
-        if (inputNums[0] == nums[0] && inputNums[2] == nums[2]) {
-            System.exit(1);
-        }
+        Concolic.assertFalse(inputNums[0] == nums[0] && inputNums[2] == nums[2]);
     }
 
     public static void main(String[] args) {

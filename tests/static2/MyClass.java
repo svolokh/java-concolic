@@ -10,9 +10,7 @@ public class MyClass {
 
     @Concolic.Entrypoint
     public static void run() {
-        if (Concolic.inputInt() == sum) {
-            System.exit(1);
-        }
+        Concolic.assertFalse(Concolic.inputInt() == sum);
     }
 
     public static void main(String[] args) {

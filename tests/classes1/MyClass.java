@@ -15,9 +15,7 @@ public class MyClass {
     @Concolic.Entrypoint
     public static void run() {
         Point p = new Point(Concolic.inputInt(), Concolic.inputInt());
-        if (p.x + p.y == 10) {
-            System.exit(1);
-        }
+        Concolic.assertFalse(p.x + p.y == 10);
     }
 
     public static void main(String[] args) {

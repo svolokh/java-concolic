@@ -6,9 +6,7 @@ public class MyClass {
         int x = Concolic.inputInt();
         long time = System.currentTimeMillis();
         int y = (int)((time/10000) % 10);
-        if (x == y + 2) {
-            System.exit(1);
-        }
+        Concolic.assertFalse(x == y + 2);
     }
 
     public static void main(String[] args) {

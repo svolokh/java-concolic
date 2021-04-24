@@ -16,9 +16,7 @@ public class MyClass {
             int x = Concolic.inputInt();
             addNum(x);
         }
-        if (sum == 100) {
-            System.exit(1);
-        }
+        Concolic.assertFalse(sum == 100);
     }
 
     public static void main(String[] args) {

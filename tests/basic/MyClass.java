@@ -19,9 +19,7 @@ public class MyClass {
             last = y;
         }
 
-        if (sum == 20) {
-            System.exit(1);
-        }
+        Concolic.assertFalse(sum == 20);
     }
 
     public static void main(String[] args) {

@@ -10,9 +10,7 @@ public class MyClass {
         }
         if (sum == 12.0f) {
             double d = (double)Concolic.inputInt() + 2.0;
-            if (d == 4.0) {
-                System.exit(1);
-            }
+            Concolic.assertFalse(d == 4.0);
         }
     }
 

@@ -15,9 +15,7 @@ public class MyClass {
             }
             x *= 2;
         }
-        if (sum == 124) {
-            System.exit(1);
-        }
+        Concolic.assertFalse(sum == 124);
     }
 
     public static void main(String[] args) {

@@ -9,16 +9,14 @@ public class MyClass {
     public static void run() {
         int i = (int)f((long)Concolic.inputInt());
         short s = (short)Concolic.inputInt();
-        if (i + s == 10) {
-            long x = (long)s;
-            long y = (long)Concolic.inputInt();
-            if (y > 0) {
-                long z = x + y;
-                if (z >= 1 && z < 4) {
-                    System.exit(1);
-                }
-            }
-        }
+        Concolic.assume(i + s == 10);
+
+        long x = (long)s;
+        long y = (long)Concolic.inputInt();
+        Concolic.assume(y > 0);
+
+        long z = x + y;
+        Concolic.assertFalse(z >= 1 && z < 4);
     }
 
     public static void main(String[] args) {

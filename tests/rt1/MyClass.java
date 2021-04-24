@@ -5,9 +5,7 @@ public class MyClass {
     public static void run() {
         int x = Concolic.inputInt();
         int y = Concolic.inputInt();
-        if (Math.max(x, y) > 2) {
-            System.exit(1);
-        }
+        Concolic.assertFalse(Math.max(x, y) > 2);
     }
 
     public static void main(String[] args) {

@@ -31,9 +31,7 @@ public class MyClass {
                     new Node(Concolic.inputInt(), new Node[] { new Node(20, null), new Node(Concolic.inputInt(), null), new Node(40, null) }), 
                     new Node(Concolic.inputInt(), new Node[] { new Node(30, null), new Node(11, null), new Node(Concolic.inputInt(), null) })
                 });
-        if (n.sum() == 300) {
-            System.exit(1);
-        }
+        Concolic.assertFalse(n.sum() == 300);
     }
 
     public static void main(String[] args) {

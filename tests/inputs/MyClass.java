@@ -10,9 +10,7 @@ public class MyClass {
         float f = Concolic.inputFloat();
         double d = Concolic.inputDouble();
         char c = Concolic.inputChar();
-        if (b == (byte)0x33 && !bl && x == 22 && l == 0x12345678L && f == 2.5f && d == 120.5 && c == 'X') {
-            System.exit(1);
-        }
+        Concolic.assertFalse(b == (byte)0x33 && !bl && x == 22 && l == 0x12345678L && f == 2.5f && d == 120.5 && c == 'X');
     }
 
     public static void main(String[] args) {

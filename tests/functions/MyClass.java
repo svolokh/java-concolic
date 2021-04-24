@@ -40,9 +40,7 @@ public class MyClass {
             int c = Concolic.inputInt();
             sum += g(c);
         }
-        if (sum > 20.0f && sum < 30.0f) {
-            System.exit(1);
-        }
+        Concolic.assertFalse(sum > 20.0f && sum < 30.0f);
     }
 
     public static void main(String[] args) {
