@@ -464,8 +464,11 @@ public class PathConditionTransformer extends SceneTransformer {
                             } else {
                                 assert v instanceof InstanceFieldRef;
                                 String varName = varNameForInstanceField(sf);
-                                units.insertBefore(Jimple.v().newInvokeStmt(Jimple.v().newStaticInvokeExpr(addInstanceFieldVariableIfNotPresent.makeRef(), varTypeTmp,
-                                        StringConstant.v(varName), IntConstant.v(key))), first);
+                                units.insertBefore(
+                                        Arrays.asList(
+                                                Jimple.v().newAssignStmt(varTypeTmp, Jimple.v().newStaticFieldRef(sootTypeToSymbolicType(sf.getType()).makeRef())),
+                                                Jimple.v().newInvokeStmt(Jimple.v().newStaticInvokeExpr(addInstanceFieldVariableIfNotPresent.makeRef(), varTypeTmp,
+                                                        StringConstant.v(varName), IntConstant.v(key)))), first);
                             }
                         }
                     }
@@ -948,10 +951,10 @@ public class PathConditionTransformer extends SceneTransformer {
         }
 
         // DEBUG
-        for (SootMethod m : methodsToInstrument)
+       /* for (SootMethod m : methodsToInstrument)
         {
             System.out.println(m.retrieveActiveBody());
-        }
+        }*/
 
         if (!isComplete) {
             System.out.println("Warning: Complete exploration of program paths will not be possible due to issues listed above");

@@ -2,6 +2,7 @@ package csci699cav;
 
 import soot.*;
 import soot.asm.AsmClassSource;
+import soot.jimple.StringConstant;
 import soot.tagkit.AnnotationTag;
 import soot.tagkit.VisibilityAnnotationTag;
 
@@ -61,15 +62,27 @@ public class Utils {
         String className = sc.getName();
         String methodName = m.getName();
 
-        // ignore any methods that deal with strings (we currently do not support them)
+        // ignore any methods that contain string constants (we currently do not support them)
         if (m.getSource() != null) {
             Body b = m.retrieveActiveBody();
             for (Unit u : b.getUnits()) {
                 for (ValueBox vb : u.getUseAndDefBoxes()) {
-                    if (vb.getValue().getType().equals(RefType.v("java.lang.String"))) {
+                    if (vb.getValue() instanceof StringConstant) {
                         return true;
                     }
                 }
+            }
+        }
+
+        {
+            // do not instrument any exception classes
+            SootClass c = sc;
+            while (c.hasSuperclass()) {
+                SootClass supClass = c.getSuperclass();
+                if (supClass.getName().equals("java.lang.Throwable")) {
+                    return true;
+                }
+                c = supClass;
             }
         }
 
@@ -77,6 +90,10 @@ public class Utils {
                     && !methodName.equals("assertFalse")
                     && !methodName.equals("assume"))
                 || className.equals("java.lang.System")
+                || className.equals("java.lang.Thread")
+                || className.equals("java.io.PrintStream")
+                || className.equals("java.io.Writer")
+                || className.equals("java.io.OutputStreamWriter")
                 || className.equals("java.lang.Object")
                 || className.equals("java.lang.Class")
                 || className.equals("java.lang.String")

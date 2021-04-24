@@ -175,6 +175,8 @@ def solveForInputs(sfiStack, sfiPathData):
     exec("BYTE_ArrayLengths = z3.Array('BYTE_ArrayLengths', z3.BitVecSort(32), z3.BitVecSort(32))")
     exec("SHORT_Arrays = z3.Array('SHORT_Arrays', z3.BitVecSort(32), z3.ArraySort(z3.BitVecSort(32), z3.BitVecSort(16)))")
     exec("SHORT_ArrayLengths = z3.Array('SHORT_ArrayLengths', z3.BitVecSort(32), z3.BitVecSort(32))")
+    exec("CHAR_Arrays = z3.Array('CHAR_Arrays', z3.BitVecSort(32), z3.ArraySort(z3.BitVecSort(32), z3.BitVecSort(16)))")
+    exec("CHAR_ArrayLengths = z3.Array('CHAR_ArrayLengths', z3.BitVecSort(32), z3.BitVecSort(32))")
     exec("INT_Arrays = z3.Array('INT_Arrays', z3.BitVecSort(32), z3.ArraySort(z3.BitVecSort(32), z3.BitVecSort(32)))")
     exec("INT_ArrayLengths = z3.Array('INT_ArrayLengths', z3.BitVecSort(32), z3.BitVecSort(32))")
     exec("LONG_Arrays = z3.Array('LONG_Arrays', z3.BitVecSort(32), z3.ArraySort(z3.BitVecSort(32), z3.BitVecSort(64)))")
@@ -198,7 +200,11 @@ def solveForInputs(sfiStack, sfiPathData):
     for sfiAssignIndex in range(len(sfiPathData.assignments)):
         sfiPc = sfiPathData.pathConstraints[sfiPathIndex]
         while sfiPc.assignmentIndex == sfiAssignIndex:
-            sfiCond = eval(sfiPathData.pathConstraints[sfiPathIndex].condition)
+            try:
+                sfiCond = eval(sfiPathData.pathConstraints[sfiPathIndex].condition)
+            except:
+                sys.stderr.write('Error when evaluating condition {}\n'.format(sfiPathData.pathConstraints[sfiPathIndex].condition))
+                raise
             if not sfiStack[sfiPathIndex].isTrue:
                 sfiCond = z3.Not(sfiCond)
             sfiSolver.add(sfiCond)
@@ -210,12 +216,20 @@ def solveForInputs(sfiStack, sfiPathData):
         if sfiStop:
             break
         sfiAssign = sfiPathData.assignments[sfiAssignIndex]
-        exec('{} = {}'.format(sfiAssign.leftOp, sfiAssign.rightOp))
+        try:
+            exec('{} = {}'.format(sfiAssign.leftOp, sfiAssign.rightOp))
+        except:
+            sys.stderr.write('Error when performing assignment {}: {} = {}\n'.format(sfiAssignIndex, sfiAssign.leftOp, sfiAssign.rightOp))
+            raise
 
     while sfiPathIndex < len(sfiStack):
         sfiPc = sfiPathData.pathConstraints[sfiPathIndex]
         assert sfiPc.assignmentIndex == len(sfiPathData.assignments)
-        sfiCond = eval(sfiPathData.pathConstraints[sfiPathIndex].condition)
+        try:
+            sfiCond = eval(sfiPathData.pathConstraints[sfiPathIndex].condition)
+        except:
+            sys.stderr.write('Error when evaluating condition {}\n'.format(sfiPathData.pathConstraints[sfiPathIndex].condition))
+            raise
         if not sfiStack[sfiPathIndex].isTrue:
             sfiCond = z3.Not(sfiCond)
         sfiSolver.add(sfiCond)
@@ -248,11 +262,10 @@ def runInstrumentedProgram(inputs, runCommand):
         if inputs[i] is not None:
             env["JAVA_CONCOLIC_INPUT{}".format(i)] = inputs[i].inputStr()
     r = subprocess.run(runCommand, shell=True, env=env, capture_output=True)
-    if verbose:
-        if len(r.stdout) > 0:
-            print(r.stdout.decode('utf-8'))
-        if len(r.stderr) > 0:
-            print(r.stderr.decode('utf-8'))
+    if len(r.stdout) > 0:
+        print(r.stdout.decode('utf-8'))
+    if len(r.stderr) > 0:
+        print(r.stderr.decode('utf-8'))
     return r.returncode != 0
 
 # load config
