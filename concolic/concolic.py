@@ -54,6 +54,15 @@ class PathData:
         self.assignments = assignments
         self.pathConstraints = pathConstraints
 
+    def inputRepr(self):
+        res = []
+        i = 0
+        for assign in self.inputAssignments:
+            assert assign.leftOp == 'INPUT{}'.format(i)
+            res.append(assign.rightOp)
+            i += 1
+        return '[{}]'.format(', '.join(res))
+
 class BVInput:
     def __init__(self, val):
         self.val = val
@@ -280,14 +289,14 @@ stack = []
 inputs = []
 while True:
     if inputs is not None:
-        inputRepr = 'random inputs' if len(inputs) == 0 else 'inputs {}'.format(repr(inputs))
-        print('Trying {} (path {})'.format(inputRepr, list(map(lambda e: e.isTrue, stack))))
         foundError = runInstrumentedProgram(inputs, runCommand)
-        if foundError:
-            print('Found error! Inputs: {}'.format(repr(inputs)))
-            if stopOnError:
-                exit(0)
         pathData = readPathData()
+        if verbose:
+            print('Input {}, Path {}, Crashed? {}'.format(pathData.inputRepr(), list(map(lambda e: e.isTrue, stack)), 'Yes' if foundError else 'No'))
+        else:
+            print('Input {}, Crashed? {}'.format(pathData.inputRepr(), 'Yes' if foundError else 'No'))
+        if foundError and stopOnError:
+            break
         for i in range(len(pathData.pathConstraints)):
             pc = pathData.pathConstraints[i]
             if i >= len(stack):

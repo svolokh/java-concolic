@@ -1,3 +1,3 @@
 #!/bin/bash
 
-[[ ! -z "$(python3 ../../concolic/concolic.py config.json | grep 'Found error')" ]]
+[[ ! -z "$(python3 ../../concolic/concolic.py config.json | grep 'Crashed? Yes')" ]]

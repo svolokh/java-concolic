@@ -81,7 +81,7 @@ public class Concolic {
         } else {
             result = Float.intBitsToFloat(Integer.parseInt(givenVal));
         }
-        ConcolicState.addInput(VariableType.FLOAT, Integer.toString(Float.floatToRawIntBits(result)));
+        ConcolicState.addInput(VariableType.FLOAT, Float.toString(result));
         return result;
     }
 
@@ -93,7 +93,7 @@ public class Concolic {
         } else {
             result = Double.longBitsToDouble(Long.parseLong(givenVal));
         }
-        ConcolicState.addInput(VariableType.DOUBLE, Long.toString(Double.doubleToRawLongBits(result)));
+        ConcolicState.addInput(VariableType.DOUBLE, Double.toString(result));
         return result;
     }
 
@@ -105,7 +105,7 @@ public class Concolic {
         } else {
             result = !givenVal.equals("0");
         }
-        ConcolicState.addInput(VariableType.BYTE, result ? "1" : "0");
+        ConcolicState.addInput(VariableType.BYTE, result ? "true" : "false");
         return result;
     }
 
