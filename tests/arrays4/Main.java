@@ -1,6 +1,6 @@
 import csci699cav.Concolic;
 
-public class MyClass {
+public class Main {
     private static char[] concat(char[] s1, char[] s2) {
         int l1 = s1.length;
         int l2 = s2.length;

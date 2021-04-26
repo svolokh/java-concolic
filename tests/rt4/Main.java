@@ -1,7 +1,7 @@
 import csci699cav.Concolic;
 import java.util.Arrays;
 
-public class MyClass {
+public class Main {
 
     @Concolic.Entrypoint
     public static void run() {

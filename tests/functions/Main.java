@@ -1,6 +1,6 @@
 import csci699cav.Concolic;
 
-public class MyClass {
+public class Main {
     private static int x = 0;
 
     private static int f(int i) {

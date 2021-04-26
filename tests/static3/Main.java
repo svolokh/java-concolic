@@ -1,6 +1,6 @@
 import csci699cav.Concolic;
 
-public class MyClass {
+public class Main {
     private static int[] nums = new int[] {1, 10, 20, 300};
 
     @Concolic.Entrypoint

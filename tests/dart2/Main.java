@@ -1,6 +1,6 @@
 import csci699cav.Concolic;
 
-public class MyClass {
+public class Main {
     private static boolean isRoomHot = false;
     private static boolean isDoorClosed = false;
     private static boolean ac = false;
@@ -22,14 +22,15 @@ public class MyClass {
                 ac = true;
             }
         }
-        Concolic.assertFalse(isRoomHot && isDoorClosed && !ac);
     }
 
     @Concolic.Entrypoint
     public static void run() {
         for (int i = 0; i != 2; ++i) {
             int message = Concolic.inputInt();
+            Concolic.assume(message >= 0 && message <= 3);
             acController(message);
+            Concolic.assertFalse(isRoomHot && isDoorClosed && !ac);
         }
     }
 

@@ -1,11 +1,10 @@
 import csci699cav.Concolic;
 
-public class MyClass {
+public class Main {
     @Concolic.Entrypoint
     public static void run() {
-        int x = Concolic.inputInt();
-        int y = Concolic.inputInt();
-        Concolic.assertFalse(Math.max(x, y) > 2);
+        int i = Concolic.inputInt();
+        Concolic.assertFalse(Integer.bitCount(i) == 12);
     }
 
     public static void main(String[] args) {

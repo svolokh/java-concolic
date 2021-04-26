@@ -1,11 +1,16 @@
 import csci699cav.Concolic;
 
-public class MyClass {
+public class Main {
+    private static int sum;
+
+    static {
+        sum = 100;
+    }
+
+
     @Concolic.Entrypoint
     public static void run() {
-        int i = Concolic.inputInt();
-        double f = ((double)i) + 0.5f;
-        Concolic.assertFalse(f == 11.5f);
+        Concolic.assertFalse(Concolic.inputInt() == sum);
     }
 
     public static void main(String[] args) {

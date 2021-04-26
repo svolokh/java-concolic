@@ -1,6 +1,6 @@
 import csci699cav.Concolic;
 
-public class MyClass {
+public class Main {
     static float[] a;
 
     @Concolic.Entrypoint

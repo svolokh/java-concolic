@@ -1,6 +1,6 @@
 import csci699cav.Concolic;
 
-public class MyClass {
+public class Main {
     @Concolic.Entrypoint
     public static void run() {
         boolean[] arr = new boolean[8];

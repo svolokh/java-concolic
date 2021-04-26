@@ -1,6 +1,6 @@
 import csci699cav.Concolic;
 
-public class MyClass {
+public class Main {
     public static class Node {
         public int value;
         public Node[] children;

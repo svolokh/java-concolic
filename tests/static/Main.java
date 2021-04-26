@@ -1,6 +1,6 @@
 import csci699cav.Concolic;
 
-public class MyClass {
+public class Main {
     private static int sum = 0;
 
     public static void addNum(int x) {

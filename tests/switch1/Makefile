@@ -3,14 +3,14 @@ CLASSPATH=../../instrumenter/instrumentation/bin
 
 .PHONY: mkdirs
 
-all: sootOutput/MyClass.class
+all: sootOutput/Main.class
 
 clean:
 	( rm -fr bin sootOutput || true ) 2>/dev/null
 	( rm pathConstraints.txt || true ) 2>/dev/null
 	( rm deps.txt rt-deps.txt conc-deps.txt || true ) 2>/dev/null
 
-sootOutput/MyClass.class: bin/MyClass.class
+sootOutput/Main.class: bin/Main.class
 	LIBRARY_DEPS_OUT=deps.txt $(JAVA_HOME)/bin/java -Xmx4g -cp "../../instrumenter/target/java-concolic-1.0-SNAPSHOT.jar" csci699cav.Main \
 		-prepend-classpath -soot-class-path "$(CLASSPATH):bin" -keep-offset -process-dir bin
 	cat deps.txt | sed 1d > rt-deps.txt

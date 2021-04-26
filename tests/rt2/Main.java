@@ -2,7 +2,7 @@ import csci699cav.Concolic;
 
 import java.util.ArrayList;
 
-public class MyClass {
+public class Main {
     @Concolic.Entrypoint
     public static void run() {
         int i = Concolic.inputInt();
