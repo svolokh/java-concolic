@@ -242,9 +242,10 @@ public class PathConditionTransformer extends SceneTransformer {
                             Jimple.v().newAssignStmt(outVar, Jimple.v().newStaticInvokeExpr(fpToFp.makeRef(), StringConstant.v(op), IntConstant.v(opConstant ? 1 : 0),
                                     IntConstant.v(toDouble ? 1 : 0))));
                 }
-            } else if (from instanceof RefType && to instanceof RefType) {
+            } else if ((from instanceof RefType && to instanceof RefType) || (from instanceof ArrayType && to instanceof ArrayType)) {
                 // nothing needs to be done for references
-                return Collections.emptyList();
+                return Collections.singletonList(
+                        Jimple.v().newAssignStmt(outVar, Jimple.v().newStaticInvokeExpr(identity.makeRef(), StringConstant.v(op),  IntConstant.v(opConstant ? 1 : 0))));
             } else {
                 throw new IllegalArgumentException("unsupported cast " + expr);
             }
