@@ -199,10 +199,11 @@ public class PathConditionTransformer extends SceneTransformer {
                 PrimType fromPrim = (PrimType)from;
                 PrimType toPrim = (PrimType)to;
 
-                if (fromPrim instanceof BooleanType || toPrim instanceof BooleanType) {
-                    if (!(fromPrim instanceof BooleanType) || !(toPrim instanceof BooleanType)) {
-                        throw new IllegalArgumentException("unexpected cast from " + fromPrim + " to " + toPrim);
-                    }
+                if (toPrim instanceof BooleanType) {
+                    toPrim = ByteType.v();
+                }
+                if (fromPrim instanceof BooleanType) {
+                    fromPrim = ByteType.v();
                 }
 
                 boolean fromBv = Utils.isBitVectorType(fromPrim);
